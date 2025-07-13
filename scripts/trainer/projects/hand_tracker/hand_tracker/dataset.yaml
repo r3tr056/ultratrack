@@ -1,0 +1,7 @@
+names:
+- class_0
+nc: 1
+path: projects\hand_tracker\hand_tracker\data
+test: images
+train: images
+val: images

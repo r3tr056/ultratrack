@@ -1,0 +1,8 @@
+{
+  "name": "hand_tracker",
+  "path": "projects\\hand_tracker\\hand_tracker",
+  "description": "",
+  "device": "jetson_nano",
+  "created": "2025-07-08T16:40:20.040372",
+  "version": "2.0"
+}

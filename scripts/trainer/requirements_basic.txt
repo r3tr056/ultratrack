@@ -1,0 +1,16 @@
+# Basic requirements for UltraTrack Trainer
+# Core packages only
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics>=8.0.200
+opencv-python>=4.8.0
+numpy>=1.24.0
+pillow>=10.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+ttkbootstrap>=1.10.0
+cryptography>=41.0.0
+psutil>=5.9.0
+requests>=2.31.0
