@@ -1,0 +1,7 @@
+opencv-python
+requests
+tqdm
+numpy
+pyyaml
+Pillow
+

@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "exception": "cpp",
+        "filesystem": "cpp",
+        "functional": "cpp",
+        "future": "cpp",
+        "memory": "cpp",
+        "optional": "cpp",
+        "xstring": "cpp"
+    }
+}
