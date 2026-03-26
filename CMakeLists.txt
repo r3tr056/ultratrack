@@ -101,15 +101,38 @@ endif()
 set(SRC_DIR   ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(INC_DIR   ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+# Feature extraction sources
+set(FEATURE_SOURCES
+    ${SRC_DIR}/features/feature_extractor.cpp
+    ${SRC_DIR}/features/hog_feature.cpp
+    ${SRC_DIR}/features/gray_feature.cpp
+    ${SRC_DIR}/features/cn_feature.cpp
+)
+
+# Tracking module sources
+set(TRACKING_SOURCES
+    ${SRC_DIR}/tracking/displacement_predictor.cpp
+    ${SRC_DIR}/tracking/scale_estimator.cpp
+)
+
 set(SOURCES
     ${SRC_DIR}/main.cpp
     ${SRC_DIR}/ultratrack.cpp
     ${SRC_DIR}/simd_optimization.cpp
+    ${FEATURE_SOURCES}
+    ${TRACKING_SOURCES}
 )
 
 set(HEADERS
     ${INC_DIR}/ultratrack.hpp
     ${INC_DIR}/version.hpp
+    ${INC_DIR}/feature_extractor.hpp
+    ${INC_DIR}/errors.hpp
+    ${INC_DIR}/features/hog_feature.hpp
+    ${INC_DIR}/features/gray_feature.hpp
+    ${INC_DIR}/features/cn_feature.hpp
+    ${INC_DIR}/tracking/displacement_predictor.hpp
+    ${INC_DIR}/tracking/scale_estimator.hpp
 )
 
 add_executable(ultratrack ${SOURCES} ${HEADERS})
@@ -155,6 +178,21 @@ add_custom_target(create_models_dir ALL
     COMMENT "Creating models directory"
 )
 
+# Create data directory and copy lookup table if exists
+add_custom_target(create_data_dir ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            ${CMAKE_BINARY_DIR}/Release/data
+    COMMENT "Creating data directory"
+)
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/data/cn_lookup.bin)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/data/cn_lookup.bin
+        ${CMAKE_BINARY_DIR}/Release/data/cn_lookup.bin
+        COPYONLY
+    )
+endif()
+
 # -----------------------------------------------------------------------------
 # 10.  Install
 # -----------------------------------------------------------------------------
@@ -166,6 +204,49 @@ install(TARGETS ultratrack
 install(DIRECTORY ${CMAKE_BINARY_DIR}/Release/models
         DESTINATION bin
         OPTIONAL)
+
+# -----------------------------------------------------------------------------
+# Testing
+# -----------------------------------------------------------------------------
+option(BUILD_TESTS "Build unit tests" OFF)
+
+if(BUILD_TESTS)
+    enable_testing()
+    
+    # Test executables
+    add_executable(test_displacement
+        tests/test_displacement.cpp
+        ${SRC_DIR}/tracking/displacement_predictor.cpp
+    )
+    target_include_directories(test_displacement PRIVATE ${INC_DIR} ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(test_displacement PRIVATE ${OpenCV_LIBS})
+    add_test(NAME DisplacementTests COMMAND test_displacement)
+    
+    add_executable(test_scale
+        tests/test_scale.cpp
+        ${SRC_DIR}/tracking/scale_estimator.cpp
+    )
+    target_include_directories(test_scale PRIVATE ${INC_DIR} ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(test_scale PRIVATE ${OpenCV_LIBS})
+    add_test(NAME ScaleTests COMMAND test_scale)
+    
+    add_executable(test_features
+        tests/test_features.cpp
+        ${FEATURE_SOURCES}
+    )
+    target_include_directories(test_features PRIVATE ${INC_DIR} ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(test_features PRIVATE ${OpenCV_LIBS})
+    add_test(NAME FeatureTests COMMAND test_features)
+    
+    add_executable(test_tracker
+        tests/test_tracker.cpp
+        ${FEATURE_SOURCES}
+        ${TRACKING_SOURCES}
+    )
+    target_include_directories(test_tracker PRIVATE ${INC_DIR} ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(test_tracker PRIVATE ${OpenCV_LIBS})
+    add_test(NAME TrackerTests COMMAND test_tracker)
+endif()
 
 # -----------------------------------------------------------------------------
 # 11.  Summary
