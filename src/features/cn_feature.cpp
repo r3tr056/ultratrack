@@ -8,6 +8,7 @@
 namespace ultratrack {
 
 CNFeature::CNFeature() {
+    lookup_table_.resize(LOOKUP_SIZE);
     load_or_generate_lookup();
 }
 

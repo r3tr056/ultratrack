@@ -24,7 +24,7 @@ public:
 
 private:
     static constexpr int LOOKUP_SIZE = 32768;  // 32^3
-    std::array<std::array<float, 10>, LOOKUP_SIZE> lookup_table_;
+    std::vector<std::array<float, 10>> lookup_table_;
     bool lookup_loaded_ = false;
     
     void load_or_generate_lookup();

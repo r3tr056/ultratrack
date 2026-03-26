@@ -67,7 +67,7 @@ endif()
 # -----------------------------------------------------------------------------
 set(OpenCV_DIR "C:/Users/Ankur/sdk/opencv/build")   # keep custom path
 find_package(OpenCV 4.5 REQUIRED CONFIG COMPONENTS
-             core imgproc imgcodecs highgui dnn video videoio)
+             core imgproc imgcodecs highgui dnn video videoio objdetect)
 
 if(NOT OpenCV_FOUND)
     message(FATAL_ERROR "OpenCV not found. Install OpenCV 4.x and set OpenCV_DIR.")

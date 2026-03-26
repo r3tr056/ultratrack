@@ -46,9 +46,41 @@ cv::Mat MultiFeatureExtractor::extract(const cv::Mat& patch) const {
         return cv::Mat();
     }
     
-    // Concatenate all features along channel dimension
-    cv::Mat result;
-    cv::merge(features, result);
+    if (features.size() == 1) {
+        return features[0];
+    }
+    
+    // Concatenate multi-channel feature maps
+    // All features should have same size but may have different channel counts
+    int total_channels = 0;
+    for (const auto& feat : features) {
+        total_channels += feat.channels();
+    }
+    
+    int rows = features[0].rows;
+    int cols = features[0].cols;
+    cv::Mat result(rows, cols, CV_32FC(total_channels));
+    
+    // Copy each feature's channels into the result
+    int channel_offset = 0;
+    for (const auto& feat : features) {
+        int feat_channels = feat.channels();
+        
+        for (int y = 0; y < rows; y++) {
+            const float* src_ptr = feat.ptr<float>(y);
+            float* dst_ptr = result.ptr<float>(y);
+            
+            for (int x = 0; x < cols; x++) {
+                for (int c = 0; c < feat_channels; c++) {
+                    dst_ptr[x * total_channels + channel_offset + c] = 
+                        src_ptr[x * feat_channels + c];
+                }
+            }
+        }
+        
+        channel_offset += feat_channels;
+    }
+    
     return result;
 }
 

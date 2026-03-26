@@ -1,0 +1,549 @@
+﻿PDF Download
+3746709.3746851.pdf
+26 March 2026
+Total Citations: 0
+
+.
+
+. Total Downloads: 301
+.
+
+Latest updates: hps://dl.acm.org/doi/10.1145/3746709.3746851 .
+. Published: 29 August 2025
+.
+
+.
+
+.
+
+RESEARCH-ARTICLE Citation in BibTeX format
+Displacement prediction strategy based on KCF in tracking ..
+
+CIBDA 2025: 2025 6th International
+Conference on Computer Information
+
+SHENGJIE GUO, Beijing Institute of Technology, Beijing, China and Big Data Applications
+.
+
+March 14 - 16, 2025
+.
+
+. Wuhan, China
+Open Access Support provided by: .
+
+.
+
+.
+
+Beijing Institute of Technology
+.
+
+CIBDA '25: Proceedings of the 2025 6th International Conference on Computer Information and Big Data Applications (March 2025)
+hps://doi.org/10.1145/3746709.3746851
+
+ISBN: 9798400713163
+.
+
+
+
+Displacement prediction strategy based on KCF in tracking
+Shengjie Guo∗
+
+School of Automation
+Beijing Institute of Technology
+
+Beijing, China
+3120200908@bit.edu.cn
+
+Abstract In the discriminant class tracking method, algorithms based on cor-
+Real-time and high precision tracking of moving targets is always relation filtering and deep learning[1][2][3] have been widely used.
+a challenging subject in the field of target tracking. In this paper, Correlation filter tracking algorithm is a kind of tracking algorithm
+based on the feature extraction and detection method of kernel which can learn and update the model in real time, and can realize
+correlation filtering algorithm KCF, target displacement prediction real-time tracking[4][5]. MOSSE[6] algorithm introduces correla-
+is introduced into the algorithm to achieve more accurate tracking tion filtering algorithm into the field of target tracking, MOSSE
+effect. In addition, the scale pool and multi-feature (descriptor) algorithm goal is to train a filter, so that the square error between
+strategy of SAMF algorithm are introduced and improved to achieve the cyclic correlation output and the desired label is minimal, and
+real-time tracking of moving targets with higher precision. The the Fourier transform is used to transform the problem into the
+experimental results show that the proposed algorithm achieves a frequency domain, and get a high-speed tracking effect, which
+good tracking effect on moving targets, and has a good performance can reach more than 600 frames per second. Then on the basis
+in tracking accuracy and tracking speed. of the MOSSE also developed many new algorithms, such as the
+
+CN[7], CSK[8], KCF[9], DSST[10], SAMF[11], AutoTrack[12][13],
+CCS Concepts etc. CT[14] algorithm is a fast, robust and simple method in discrim-
+• Computing methodologies→ Artificial intelligence; Computer inant class tracking. CT algorithm uses the theory of compressed
+vision; Computer vision problems; Tracking. sensing to classify and discriminate features after dimensionality
+
+reduction to achieve tracking effect. CN algorithm uses color name
+Keywords feature to describe target feature, which improves the effect of
+
+tracking algorithm. CSK algorithm uses ridge regression, cyclic
+KCF, SAMF, Displacement prediction, multi-feature, multi-scale matrix, fast Fourier transform and other methods to accelerate the
+ACM Reference Format: calculation and training to get the filter, CSK algorithm uses gray
+Shengjie Guo. 2025. Displacement prediction strategy based on KCF in features. Compared with CSK algorithm, KCF algorithm introduces
+tracking. In 2025 6th International Conference on Computer Information and HOG feature, proposes multi-channel sample training strategy, and
+Big Data Applications (CIBDA 2025), March 14–16, 2025, Wuhan, China.ACM, carries on some optimization to accelerate the calculation. Both
+New York, NY, USA, 6 pages. https://doi.org/10.1145/3746709.3746851 DSST and SAMF algorithms put forward their own solutions to
+
+1 INTRODUCTION the problem of scale change of tracking targets, and successfully
+improve the accuracy and success rate of tracking, but the speed of
+
+In recent years, with the rapid development of computer technol- tracking algorithms has decreased. AutoTrack algorithm proposes
+ogy, the field of computer vision has made great progress, including an online automatic and adaptive learning method of relevant pa-
+the field of target tracking. The use of visual target tracking technol- rameters, which can effectively use the local and global information
+ogy to achieve real-time tracking of moving targets or continuous hidden in the response graph. In discriminant class tracking meth-
+tracking of specific targets in video files has a wide range of applica- ods, many algorithms using deep learning methods have emerged
+tion scenarios and application value. It is becoming more and more in recent years, but these methods are usually difficult to meet the
+normal to use target tracking technology on various unmanned plat- requirements of real-time tracking. At the same time, due to the
+forms, and the application of target tracking algorithm to ground hardware limitations of on-board calculators on mobile devices, it is
+unmanned vehicle platform has quite high application value. difficult to run these deep learning-based target tracking algorithms
+
+There are two kinds of visual object tracking methods: genera- well.
+tive class tracking method and discriminant class tracking method. Now target tracking algorithm has a good performance in many
+Since the generated class tracking method can not adapt to the com- scenes[15][16], but there are still some problems, such as tracking
+plex and changeable tracking scene, it is gradually reduced in use. target scale change, target deformation and occlusion problems.
+∗Corresponding author These problems may often be encountered when running object
+
+tracking algorithms on unmanned platforms such as unmanned
+vehicles[17]. In this case it is important to find an algorithm that
+can solve these problems to a certain extent and does not require too
+
+This work is licensed under a Creative Commons Attribution International 4.0 License. much computing power. The performance of unmanned platform,
+CIBDA 2025, Wuhan, China such as the on-board computer of unmanned vehicle, is relatively
+© 2025 Copyright held by the owner/author(s). limited. In this case, it is a meaningful work to find a tracking
+ACM ISBN 979-8-4007-1316-3/2025/03
+https://doi.org/10.1145/3746709.3746851
+
+820
+
+
+
+CIBDA 2025, March 14–16, 2025, Wuhan, China Shengjie Guo
+
+The following introduces the principles of KCF algorithm and
+SAMF algorithm, which is the basis of the improved algorithm
+proposed in this paper.
+
+2.1 Principle of KCF algorithm
+KCF algorithm is a target tracking algorithm based on and corre-
+lation filters proposed in 2014. It has a wide range of applications
+in target tracking, with high efficiency, accuracy and robustness.
+KCF algorithm is based on discriminant tracking framework, uses
+kernel function to build correlation filter, and tracks the target
+through training samples. KCF algorithm generates multiple copies
+through cyclic matrix, and uses each sample for regression training,
+thus enhancing the performance of the tracker. KCF algorithm
+mainly includes these parts: cyclic matrix, ridge regression, kernel
+technique, feature extraction, fast detection and model updating.
+
+2.1.1 Cyclic Matrix. Let’s say we have a vector represented by G ,
+G = [G1, G2, G3, · · · , G=]) , and this vector represents information
+about the object of interest, we call this vector base sample. Our
+goal is to train a classifier using this basic sample and the many
+samples that are used as negative samples using this basic sam-
+ple transformation. % is the permutation matrix used to generate
+negative samples. 0 0 0 · · · 1
+
+ 
+% = 1 0 0 · · · 0
+
+ 
+0 1 0 · · · 0
+  (1)
+
+ . . .
+
+ . . . . . .
+. . . . .
+
+.
+0 0 · · · 1 0
+
+Take the permutation matrix and G product, shift %G =
+Figure 1: Flow chart of tracking algorithm. [G=, G1, G2, · · · , G=−1]) , by the matrix pow}er %
+
+DG can get a larger
+shift. {
+
+%DG |D = 0, · · ·= − 1 (2)
+algorithm that can ensure the tracking effect and achieve the real-
+time tracking speed. In this way, the circulation-based matrix can be
+
+ G 1 G2 G3 · · · G=  obtained.Based on KCF algorithm, this paper obtains an improved algo-
+rithm, which retains HOG feature, introduces gray feature and color 
+
+ G G
+
+ = 1 G2 · · · G=−1
+name feature, introduces multi-scale pool strategy, and introduces 
+
+- = G =−1 G= G1 · · · G=−2
+target displacement prediction. This ensures the tracking speed of 
+the target tracking algorithm and improves the tracking accuracy  (3)
+
+ . . .
+. . . .
+
+ . . .
+. . . . .
+
+and success rate compared with the KCF algorithm, which is a good G2 G3 G4 · · · G 
+1 
+
+real-time tracking target tracking algorithm. The cyclic matrix can be made diagonal by discrete Fourier trans-
+
+2 TRACKING ALGORITHMS form (DFT).
+- = 3806 (Ĝ)  (4)
+
+This paper presents an improved KCF algorithm which introduces
+displacement prediction function, multi-feature and scale pool strat- where F is the constant matrix, Ĝ is the vector obtained by DFT, and
+egy. Select the tracking target region in the first frame, calculate Ĝ = F (G). The cyclic matrix can be diagonalized in Fourier space.
+the characteristic value and relevant parameters according to the KCF algorithm uses this property to reduce the computation and
+target region, predict the target operation according to the target improve the running speed of the algorithm.
+displacement difference between the present frame and the previ- 2.1.2 Ridge Regression. Ridge regression is an improved least
+ous frame from the second frame, adjust the target detection region, square method, which introduces regularization terms based on
+and calculate the response value of the target region of different least square method. When using a linear model, 5 (I) = l) I, this
+sizes according to the scale pool, select the region with the largest function can minimize∑the square error of sample G8 and regressionresponse value, no matter the first frame or the next frame. The target ~8 .features used are the integration of HOG feature, gray feature and
+CN feature. The algorithm flow chart is shown in Figure 1. <8= (5 (G8 ) − ~ 2
+
+8 ) + _‖l ‖2 (5)
+l 8
+
+821
+
+
+
+Displacement prediction strategy based on KCF in tracking CIBDA 2025, March 14–16, 2025, Wuhan, China
+
+Taking the partial deriv(ative of l )yields: 2.1.6 Model Update. KCF algorithm calculates the current model
+′
+
+−1 Û in the first frame, and records the current model U in each sub-
+l = -)- + _ -)~ (6) sequent frame. The model of each subsequent frame is obtained by
+
+Since all subsequent calculations are performed in the Fourier linear interpolation between the current model and the previous
+domain, where values are generally complex numbers, the formula model, with a learning rate of [ and a size between 0 and 1. Then:
+becomes: ( ) ′
+
+U = (1 − [) U U (17)
+− =4F >;3 + [
+1
+
+l = -- + _ -~ (7)
+2.2 Principle of SAMF algorithm
+
+Since - is a cyclic matrix, we can further obtain: Based on KCF algorithm, since kernel correlation function only
+Ĝ∗  ~̂ needs to compute dot product and vector norm, multi-channel
+
+l̂ =
+Ĝ∗  + (8)
+
+Ĝ _ image features can be used. Assuming that multiple channels of
+2.1.3 Kernel Trick. When dealing with data, nonlinear data is of- feature data are connected into a vector G = [G1, G2, · · · , G ], then
+ten encountered. KCF algorithm uses kernel trick to map linearly equation (12
+
+mensional space and make it linearly () can)be changed to:
+indivisible data into high-di 
+divisible. If the mapping func∑tion is G ‖ 2
+
+i (G)a, then: ′ © 1 ©
+: exp ­«− ­ (  
+
+‖ 2 + ′
+G
+
+G, G = )ª
+′ ®ª® (18)
+
+f2
+l = U i (G «−2F −1 ∑
+
+ Ĝ
+∗
+2  Ĝ2
+
+8 8 ) (9) ¬¬
+8
+
+The solution to lgorithm to use the fusion of multiple features
+
+ equation (5) becom This allows the a
+
+ es: to get better results. In addition to the gray pixels of the original
+<8= i (- ) i (- ))U − ~2  
+
++  2
+_i (- ))U (10) image, the SAMF algorithm also uses HOG features and CN features.
+
+U HOG feature and CN feature complement each other. HOG feature
+Taking the derivative of U and setting the derivative equal to 0, focuses on gradient change of image, while CN feature focuses on
+
+we get: formation.
+U =( color in
+
+( + _ )−1~ ) In addition, for the case that KCF can’t handle the scaling change
+−1 (11) in video, SAMF algorithm adds a scale adaptive method to deal
+
+= i (- ) i (- )) + _ ~ with the scaling change of tracking target. Suppose that the sample
+where K is the kernel matrix, KCF algorithm generally uses Gauss- size is () = (BG , B~), the scale pool is ( = {C1, C2, · · · , C: }, and the
+ian kernel function to calculate, Gaussian kernel function makes original target window size is (C , then in the current frame, SAMF
+the kernel m(atrix is a cyc(lic matrix.  algorithm samples k sizes in {C8(C |C8 ∈ (} to find the appropriate
+
+size, and after adjusting the size to () , the final response value is()′  ′ )
+2
+
+: G, G = ex(p − 1
+
+G − G 
+f2 ( ) ) calculated by the following formula:
+
+(12) ( )
+2
+
+exp 1 ‖ + ′ − argmax −1 5̂ IC8− (19)
+G 2F −1
+
+2 ‖G 2   )
+Ĝ∗  ′
+
+= Ĝ
+f
+
+where IC8 is the sample size of C8() , adjusted to () . After obtaining
+Eventually, we can get it. a vector by the corresponding function, by calculating its largest
+
+( ~̂ ) scalar, find the subscript of the maximum value, and get C8 . The
+Û = (13) scaling of tracking objects in video is handled by adaptive change
+
+:̂GG + _ and selection of scale pool.
+2.1.4 Feature Extraction. KCF algorithm extracts and characterizes 2.3 Improved Algorithm
+the target information by using FHOG features reduced by PCA,
+and finally obtains 31-dimensional features. The resulting FHOG 2.3.1 Displacement Prediction. The object tracked by the un-
+features provide a method to integrate high-dimensional features manned platform often moves at a constant speed or changes
+into the correlation filter framework through pixel-level feature quickly in a short period of time. In this case, the displacement
+mapping and discretization of gradient direction, and have a good between the current frame and the last frame can be estimated
+performance in target tracking tasks. according to the displacement changes of the first two frames. As-
+
+suming uniform linear motion, the position of the current frame is
+2.1.5 Fast Detection. KCF algorithm also simplifies and accelerates as follows:
+the detection process, using  I to represent the kernel matrix
+
+) %C = %C−1 + (%C−1 − %C−2) (20)
+between all training samples and c(andidate regions, then: where %C is the position of the current frame, %C−1 is the position
+
+ I =  :GI (14) of the previous frame, and %C−2 is the position of the target two
+From formula (9), it can be obt(aine)d: frames ago.
+
+In the KCF algorithm, the current target region is multiplied by
+5 (I) )
+
+=  I U (15) coefficient padding to get the region to be detected. If the target
+Fourier transform diagonalization gives: moves too fast, it may move out of the region to be detected, and
+
+it is more likely to move to the edge of the region to be detected.
+5̂ (I) = :̂GI  U (16) However, the region to be detected is itself used by superimposed
+
+822
+
+
+
+CIBDA 2025, March 14–16, 2025, Wuhan, China Shengjie Guo
+
+cosine window. When the target moves too fast to the edge of deformation (DEF), motion blur (MB), fast motion (FM), in-plane
+the area to be detected, the target information is likely to be lost, rotation (IPR), out-of-plane rotation (OPR), out-of-field of view
+resulting in tracking failure. (OV), background clutter (BC), and low resolution (LR).
+
+In practical application, when the displacement of the first two
+frames is too small, it is considered not to perform position esti- 3.1 Evaluation Metrics and Methodology for
+mation, and two thresholds `1 and `2 are set. At the same time, Algorithms
+considering that the tracking target is not moving uniformly in a OTB data sets are evaluated in One Pass Evaluation (OPE), Tempo-
+straight line, the displacement of the first two frames is multiplied rally Robust Evaluation (TRE) and Spatial Robust Evaluation (TRE).
+by a coefficient ^ and then the position estimation can cope with a SRE). In this paper, OPE evaluation method is adopted. OPEmethod
+variety of motion situations of the object. Therefore, the position initializes the first frame with ground-truth target position, and
+estimation of the current frame based on displacement prediction then runs tracking algorithm to get average accuracy and success
+is: rate.
+
+%C = %C−1 + ^ (%C−1 − %C−2) , `1 < |%C−1 − %C−2 | < `2 (21) Accuracy refers to the accuracy of tracking the target’s position.
+2.3.2 Scale Estimation. Drawing on and learning the idea of SAMF In the evaluation of tracking accuracy, the center position error is a
+algorithm’s scale pool, this paper sets up a 3-scale scale pool to widely used criterion, which is the average pixel distance (Euclidean
+carry out traversal calculation and comparison of tracking targets distance) between the center position of the tracking target and
+to find the most appropriate scale size for each frame. Because the exact position manually labeled. In general, the average center
+SAMF algorithm sets a 7-scale scale pool, it will take more time position error of all frames in a sequence is used to evaluate the
+to traverse calculation and comparison. The 3-scale scale pool in overall performance of the tracking algorithm for the sequence.
+this paper improves the speed of the tracking algorithm without However, when the tracker loses the target, the predicted tracking
+affecting the accuracy and success rate of tracking too much. position is random, and the average error value may not accurately
+
+Assuming that the sample size is evaluate the performance of the tracker. Therefore, the OTB data
+() = (BG , B~), the scale pool is set was further expanded into an accuracy curve to calculate the
+
+( = {C1, C2, · · · , C: }, and the interval between different scales of the
+SAMF algorithm is BX , then the scale pool ( setting of the SAMF successful tracking ratio under different threshold distances, and
+algorithm is: the value corresponding to a threshold of 20 pixels was adopted as
+
+a representative accuracy evaluation index.
+( = {1 − 3BX , 1 − 2BX , 1 − BX , 1, 1 + BX , 1 + 2BX , 1 + 3BX } (22) Success rate refers to the percentage of success in the tracking
+
+The scale pool Settings in this paper are: area. Because the center position error cannot evaluate the scale
+change of the target in the tracking process, an evaluation criterion
+
+(pool = {1 − 2BX , 1, 1 + 2BX } (23) based on the area overlap ratio is proposed, and the performance
+After such adjustment, the algorithm can make effective adjust- of the tracking algorithm is measured by the area overlap ratio
+
+ment to the scale change of the tracking target without wasting between the bounding box obtained by the statistical tracking al-
+too much computing resources and time. gorithm and the accurate bounding box marked manually. Firstly,
+2.3.3 Multi-Feature. To learn the multi-feature fusion of SAMF overlap score (OS) is defined. bounding box (denoted as a) obtained
+algorithm, this paper uses FHOG feature, gray feature and CN by tracking algorithm and box (denoted as b) given by ground-truth
+feature to improve the tracking effect of tracking targets through are defined as: 
+the fusion of multi-feature information. FHOG feature extracts  
+
+0 ∩ 1 
+$( =  4)
+
+0 ∪ 1  (2
+the gradient information of tracking targets, gray feature and CN
+feature show the color features of tracking targets, and FHOG has When the OS of a certain frame is greater than the set threshold,
+31-dimensional information. Gray feature and CN feature have a the frame is considered a Success, and the percentage of the total
+total of 11 dimensions of information, and the fused feature has a successful frames in all frames is the Success rate. The value of
+total of 42 information, which does not increase much information OS ranges from 0 to 1, so you can plot the success rate of the
+compared with the original FHOG feature information, but plays a threshold change from 0 to 1. Then, the Area Under Curve (AUC)
+good role. of the success rate curve is used to measure the success rate of the
+
+tracking algorithm.
+3 EXPERIMENTS
+All tracking algorithms were run on Windows 10, 64bit systems 3.2 Qualitative Analysis
+using MATLAB R2022b simulation software. The CPU of this com- In this part, Human6 sequence, boy sequence and Car1 sequence
+puter is Intel i9 13900KF, the running frequency is 3GHz, the GPU is in OTB data set are taken as examples to compare and analyze
+NVIDIA GeForce RTX 4090, the video memory is 24GB, the memory the effect of the tracking algorithm. Human6 sequence has 5 at-
+is 32GB. tributes, such as scale transformation, occlusion, deformation, fast
+
+The data set tested by the algorithm in this paper is OTB100, movement and out of view. boy sequence has 5 attributes: scale
+which is a data set established in 2015. It has 98 video sequences change, motion blur, fast motion, in-plane rotation, out-of-plane
+and 100 tracking targets, including both grayscale images and color rotation, Car1 has 4 attributes: illumination change, scale change,
+images. OTB100 has 11 different attribute categories, They are background clutter, low resolution. There are 6 tracking algorithms
+illumination variation (IV), scale variation (SV), Occlusion (OCC), for comparison, which are the present algorithm, CT algorithm,
+
+823
+
+
+
+Displacement prediction strategy based on KCF in tracking CIBDA 2025, March 14–16, 2025, Wuhan, China
+
+Figure 2: Tracking effects of different sequences in OTB data set.
+
+CSK algorithm, KCF algorithm, DSST algorithm and SAMF algo-
+rithm. The tracking area of these algorithms is represented by a
+square box, among which the algorithm in this paper is represented
+by a red box, the CT algorithm is represented by a green box, the
+CSK algorithm is represented by a blue box, the KCF algorithm
+is represented by a black box, the DSST algorithm is represented
+by a pink box, and the SAMF algorithm is represented by a cyan
+box. In Figure 2, the first row represents the tracing effect of the
+Human6 sequence, the second row represents the tracing effect of
+the boy sequence, and the third row represents the tracing effect of
+the Car1 sequence.
+
+At the beginning of the Human6 sequence, CT algorithm did not
+track the target, then CSK algorithm and KCF algorithm also lost
+track of the target, and then around 394 frames, DSST algorithm also
+lost track of the target, and finally SAMF algorithm also lost track
+of the target, only the algorithm in this paper is still tracking. This
+shows that the algorithm in this paper has excellent performance Figure 3: Precision.
+in 5 attributes such as fast motion, scale change and deformation.
+In boy sequence and Car1 sequence, the proposed algorithm, DSST
+algorithm and SAMF algorithm can track the target well, which SAMF algorithm are tested on the whole OTB data set, and the
+shows that the proposed algorithm also has good performance results are compared. The experimental results are shown in Figure
+in motion ambiguity, in-plane rotation, low resolution and other 3, Figure 4 and Table 1.
+attributes. Based on the above analysis, the algorithm in this paper Figure 3 shows the accuracy of these 6 algorithms tested on
+has a good performance in processing the fast motion and scale OTB100 data set. The results show that compared with KCF algo-
+transformation of the tracking target, and also has a good effect on rithm, the effectiveness of the proposed algorithm is improved by
+other attributes. 6.5%, and compared with SAMF algorithm, the proposed algorithm
+
+is improved by 0.2%.
+3.3 Quantitative Analysis Figure 4 shows the success rate of these 6 algorithms tested on
+In this part, six algorithms including the proposed algorithm, CT OTB100 data set. Compared with KCF algorithm, the effectiveness
+algorithm, CSK algorithm, KCF algorithm, DSST algorithm and of this algorithm increased by 11.4%, while compared with SAMF
+
+824
+
+
+
+CIBDA 2025, March 14–16, 2025, Wuhan, China Shengjie Guo
+
+Table 1: Speed of the algorithms.
+
+Algorithms CT CSK KCF DSST SAMF Ours
+Speed(frame/s) 324 968 404 59 48 92
+
+References
+[1] Marvasti-Zadeh S M, Cheng L, Ghanei-Yakhdan H, et al. Deep learning for vi-
+
+sual tracking: A comprehensive survey[J]. IEEE Transactions on Intelligent
+Transportation Systems, 2021, 23(5): 3943-3968.
+
+[2] Gao S, Zhou C, Ma C, et al. Aiatrack: Attention in attention for transformer
+visual tracking[C]//European conference on computer vision. Cham: Springer
+Nature Switzerland, 2022: 146-164.
+
+[3] Yan B, Peng H, Fu J, et al. Learning spatio-temporal transformer for visual track-
+ing[C]//Proceedings of the IEEE/CVF international conference on computer
+vision. 2021: 10448-10457.
+
+[4] Cao D, Dai R,Wang J, et al. Fast visual tracking with squeeze and excitation region
+proposal network[J]. Human-Centric Computing and Information Sciences, 2023.
+
+[5] Fernández-Sanjurjo M, Mucientes M, Brea V M. Real-time multiple object visual
+tracking for embedded GPU systems[J]. IEEE Internet of Things Journal, 2021,
+8(11): 9177-9188.
+
+[6] Bolme D S, Beveridge J R, Draper B A, et al. Visual object tracking using adaptive
+correlation filters[C]//2010 IEEE computer society conference on computer vision
+and pattern recognition. IEEE, 2010: 2544-2550.
+
+[7] Danelljan M, Shahbaz Khan F, Felsberg M, et al. Adaptive color attributes for
+real-time visual tracking[C]//Proceedings of the IEEE conference on computer
+vision and pattern recognition. 2014: 1090-1097.
+
+[8] Henriques J F, Caseiro R, Martins P, et al. Exploiting the circulant structure
+Figure 4: Success rate. of tracking-by-detection with kernels[C]//Computer Vision–ECCV 2012: 12th
+
+European Conference on Computer Vision, Florence, Italy, October 7-13, 2012,
+Proceedings, Part IV 12. Springer Berlin Heidelberg, 2012: 702-715.
+
+[9] Henriques J F, Caseiro R, Martins P, et al.High-speed tracking with kernelized cor-
+algorithm, the difference between this algorithm and SAMF algo- relation filters[J]. IEEE transactions on pattern analysis and machine intelligence,
+rithm is 1.1%. In combination with Table 1, it can be seen that the 2014, 37(3): 583-596.
+
+algorithm in this paper runs nearly twice as fast as SAMF algorithm, [10] Danelljan M, Häger G, Khan F, et al. Accurate scale estimation for robust visual
+tracking[C]//British machine vision conference, Nottingham, September 1-5,
+
+which indicates that the algorithm in this paper has better real-time 2014. Bmva Press, 2014.
+performance when the accuracy rate is slightly improved compared [11] Li Y, Zhu J. A scale adaptive kernel correlation filter tracker with feature in-
+
+tegration[C]//Computer Vision-ECCV 2014 Workshops: Zurich, Switzerland,
+with SAMF algorithm and the success rate is not different. September 6-7 and 12, 2014, Proceedings, Part II 13. Springer International Pub-
+
+lishing, 2015: 254-265.
+4 CONCLUSION [12] Li Y, Fu C, Ding F, et al. AutoTrack: Towards high-performance visual tracking
+
+for UAV with automatic spatio-temporal regularization[C]//Proceedings of the
+In this paper, an improved target tracking algorithm based on KCF IEEE/CVF conference on computer vision and pattern recognition. 2020: 11923-
+algorithm is proposed. The scale pool module and multi-feature 11932.
+
+[13] CHEN Lin, LIU Yungang. UAV Visual Target Tracking Algorithms: Review and
+method of SAMF algorithm are learned by reference, and the dis- Future Prospect[J]. INFORMATION AND CONTROL, 2022, 51(1): 23-40. DOI:
+placement prediction module is added. The experimental results 10.13976/j.cnki.xk.2022.1144
+
+show that the proposed algorithm has excellent performance com- [14] K. Zhang, L. Zhang, and M. Yang, “Real-time compressive tracking,” in Pro-
+ceedings of European Conference on Computer Vision, pp. 864–877, 2012. 1,
+
+pared with CSK algorithm, KCF algorithm, DSST algorithm, SAMF 8
+algorithm, etc., and can track the target well when the target is fast [15] Liu S, Liu D, Muhammad K, et al. Effective template update mechanism in visual
+
+tracking with background clutter[J]. Neurocomputing, 2021, 458: 615-625.
+moving and the scale changes. Compared with KCF algorithm, the [16] Alawode B, Dharejo F A, Ummar M, et al. Improving underwater visual tracking
+proposed algorithm can improve the performance and ensure the with a large scale dataset and image enhancement[J]. arXiv preprint arXiv:
+running speed of the algorithm. 2308.15816, 2023.
+
+[17] Li J, Zhang K, Gao Z, et al. SiamPRA: An Effective Network for UAV Visual
+Tracking[J]. Electronics, 2023, 12(11): 2374.
+
+825
