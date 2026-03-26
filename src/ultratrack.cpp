@@ -86,6 +86,17 @@ UltraTracker::~UltraTracker() {
 #endif
 }
 
+UltraTracker::UltraTracker(const std::string& model_path, const TrackerConfig& config,
+                           const std::string& feature_model_path)
+    : UltraTracker(model_path, feature_model_path) {
+    tracker_config_ = config;
+    feature_extractor_ = std::make_unique<MultiFeatureExtractor>(config.mode, config.feature);
+    scale_estimator_ = std::make_unique<ScaleEstimator>(config.scale);
+    learning_rate_ = config.learning_rate;
+    lambda_ = config.lambda;
+    sigma_ = config.sigma;
+}
+
 void UltraTracker::update(const cv::Mat& frame, std::vector<Detection>& detections) {
     validate_input(frame);
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -216,6 +227,15 @@ void UltraTracker::predict_tracks() {
     std::lock_guard<std::mutex> lock(tracks_mutex); // Thread safety
     for (auto& track : active_tracks_) {
         predict_kalman(track);
+        
+        // Displacement prediction
+        if (track.displacement_predictor) {
+            cv::Point2f current_center(
+                track.bbox.x + track.bbox.width / 2,
+                track.bbox.y + track.bbox.height / 2);
+            track.predicted_center = track.displacement_predictor->predict(current_center);
+        }
+        
         track.age++;
         track.time_since_update++;
     }
@@ -375,10 +395,23 @@ void UltraTracker::create_new_tracks(const std::vector<Detection>& unmatched_det
         if (safe_bbox.area() > 0 && !frame.empty()) {
             cv::Mat patch = frame(safe_bbox);
             new_track.correlation_filter = create_correlation_filter(patch);
+            
+            // Initialize displacement predictor
+            new_track.displacement_predictor = std::make_unique<DisplacementPredictor>(
+                tracker_config_.displacement);
+            new_track.base_size = cv::Size2f(detection.bbox.width, detection.bbox.height);
+            new_track.predicted_center = cv::Point2f(
+                detection.bbox.x + detection.bbox.width / 2,
+                detection.bbox.y + detection.bbox.height / 2);
+            
+            // Create multi-channel filter if available
+            if (feature_extractor_) {
+                new_track.multi_channel_filter = create_multi_channel_filter(patch);
+            }
         }
         {
             std::lock_guard<std::mutex> lock(tracks_mutex);
-            active_tracks_.push_back(new_track);
+            active_tracks_.push_back(std::move(new_track));
         }
     }
 }
@@ -629,6 +662,34 @@ size_t UltraTracker::get_track_count() const {
     return active_tracks_.size();
 }
 
+void UltraTracker::set_tracking_mode(TrackingMode mode) {
+    tracker_config_.mode = mode;
+    if (feature_extractor_) {
+        feature_extractor_->set_mode(mode);
+    }
+}
+
+TrackingMode UltraTracker::get_tracking_mode() const {
+    return tracker_config_.mode;
+}
+
+void UltraTracker::set_tracker_config(const TrackerConfig& config) {
+    tracker_config_ = config;
+    if (feature_extractor_) {
+        feature_extractor_->set_mode(config.mode);
+    }
+    if (scale_estimator_) {
+        scale_estimator_->set_config(config.scale);
+    }
+    learning_rate_ = config.learning_rate;
+    lambda_ = config.lambda;
+    sigma_ = config.sigma;
+}
+
+TrackerConfig UltraTracker::get_tracker_config() const {
+    return tracker_config_;
+}
+
 void UltraTracker::set_nms_threshold(float threshold) {
     if (threshold >= 0.0f && threshold <= 1.0f) nms_threshold_ = threshold;
 }
@@ -653,6 +714,50 @@ cv::Mat UltraTracker::create_hann_window(int size) {
         data[i] = 0.5f * (1.0f - std::cos(2.0f * CV_PI * i / (size - 1)));
     }
     return hann;
+}
+
+cv::Mat UltraTracker::create_multi_channel_filter(const cv::Mat& patch) {
+    if (patch.empty() || !feature_extractor_) {
+        return create_correlation_filter(patch);  // Fallback to original
+    }
+    
+    cv::Mat features = feature_extractor_->extract(patch);
+    if (features.empty()) {
+        return create_correlation_filter(patch);
+    }
+    
+    // Create filter for multi-channel features
+    cv::Mat resized;
+    cv::resize(features, resized, template_size_);
+    
+    // Apply Hann window to each channel
+    std::vector<cv::Mat> channels;
+    cv::split(resized, channels);
+    
+    cv::Mat filter_sum = cv::Mat::zeros(template_size_, CV_32FC2);
+    
+    for (auto& channel : channels) {
+        channel = channel.mul(hann_window_);
+        
+        cv::Mat channel_fft = fft2d(channel);
+        cv::Mat target_fft = fft2d(gaussian_target_);
+        
+        cv::Mat numerator, denominator;
+        cv::mulSpectrums(target_fft, channel_fft, numerator, 0, true);
+        cv::mulSpectrums(channel_fft, channel_fft, denominator, 0, true);
+        
+        denominator += cv::Scalar::all(lambda_);
+        
+        cv::Mat channel_filter;
+        cv::divide(numerator, denominator, channel_filter);
+        
+        filter_sum += channel_filter;
+    }
+    
+    // Average across channels
+    filter_sum /= static_cast<float>(channels.size());
+    
+    return filter_sum;
 }
 
 } // namespace ultratrack
