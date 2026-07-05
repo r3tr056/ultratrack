@@ -4,6 +4,8 @@ set(ULTRATRACK_SOURCES
     core/result.cpp
     core/types.cpp
     core/math.cpp
+    detector/opencv_dnn_backend.cpp
+    detector/detector_factory.cpp
     features/feature_extractor.cpp
     features/hog_feature.cpp
     features/gray_feature.cpp
