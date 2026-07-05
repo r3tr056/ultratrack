@@ -1,6 +1,7 @@
 #include <ultratrack/tracking_engine/track_manager.hpp>
 #include <ultratrack/tracking_engine/data_association.hpp>
 #include <ultratrack/core/math.hpp>
+#include <spdlog/spdlog.h>
 #include <algorithm>
 
 namespace ultratrack {
@@ -26,7 +27,7 @@ TrackManager::TrackManager(const Config& cfg) : cfg_(cfg) {}
 
 Status TrackManager::update(const std::vector<Detection>& detections, const cv::Mat& frame) {
     try {
-        predictAll(frame);
+        auto predicted_missed = predictAll(frame);
 
         DataAssociation::Config assoc_cfg;
         assoc_cfg.iou_threshold = 0.3f;
@@ -40,17 +41,25 @@ Status TrackManager::update(const std::vector<Detection>& detections, const cv::
         for (const auto& match : assoc_result.matches) {
             size_t i = match.first;
             size_t j = match.second;
+            auto status = kcf_->update(tracks_[i], frame, detections[j].bbox);
+            if (!status.ok()) {
+                spdlog::warn("KCF update failed for track {}: {}", tracks_[i].id, status.message());
+                // Treat the track as unmatched: leave bbox/confidence unchanged and
+                // let the post-association loop count this frame as a miss.
+                track_matched[i] = false;
+                det_matched[j] = true;
+                continue;
+            }
             life.onMatched(tracks_[i]);
             tracks_[i].bbox = detections[j].bbox;
             tracks_[i].confidence = detections[j].confidence;
-            kcf_->update(tracks_[i], frame, detections[j].bbox);
             track_matched[i] = true;
             det_matched[j] = true;
         }
 
-        // Mark missed tracks
+        // Mark missed tracks, skipping those already handled by a failed prediction.
         for (size_t i = 0; i < tracks_.size(); ++i) {
-            if (!track_matched[i]) {
+            if (!track_matched[i] && !predicted_missed[i]) {
                 life.onMissed(tracks_[i]);
             }
         }
@@ -74,15 +83,31 @@ Status TrackManager::update(const std::vector<Detection>& detections, const cv::
     }
 }
 
-void TrackManager::predictAll(const cv::Mat& frame) {
-    (void)frame;
-    for (auto& track : tracks_) {
+std::vector<bool> TrackManager::predictAll(const cv::Mat& frame) {
+    std::vector<bool> predicted_missed(tracks_.size(), false);
+    TrackLifecycle life(cfg_.lifecycle);
+    for (size_t i = 0; i < tracks_.size(); ++i) {
+        auto& track = tracks_[i];
         track.age++;
-        // Note: time_since_update is managed by TrackLifecycle::onMatched/onMissed
-        // so it is not incremented here. This avoids double-counting missed frames.
-        // KCF prediction is intentionally skipped in this skeleton; bbox refinement
-        // will be integrated once the data association flow is complete (Task 7).
+
+        auto result = kcf_->predict(track, frame);
+        if (!result.has_value()) {
+            spdlog::warn("KCF predict failed for track {}: {}", track.id, result.error().message());
+            life.onMissed(track);
+            predicted_missed[i] = true;
+            continue;
+        }
+
+        Rect2f predicted_bbox = result.value();
+        if (predicted_bbox.area() <= 0.0f) {
+            life.onMissed(track);
+            predicted_missed[i] = true;
+            continue;
+        }
+
+        track.bbox = predicted_bbox;
     }
+    return predicted_missed;
 }
 
 void TrackManager::createNewTracks(const std::vector<Detection>& unmatched, const cv::Mat& frame) {

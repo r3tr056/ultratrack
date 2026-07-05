@@ -20,7 +20,12 @@ std::unordered_map<std::string, double> MetricsCollector::snapshot() const {
 
         std::vector<double> sorted(vals);
         std::sort(sorted.begin(), sorted.end());
-        out[stage + "_p50_ms"] = sorted[sorted.size() / 2];
+        const size_t n = sorted.size();
+        if (n % 2 == 1) {
+            out[stage + "_p50_ms"] = sorted[n / 2];
+        } else {
+            out[stage + "_p50_ms"] = (sorted[n / 2 - 1] + sorted[n / 2]) * 0.5;
+        }
 
         double sum = std::accumulate(vals.begin(), vals.end(), 0.0);
         out[stage + "_avg_ms"] = sum / vals.size();

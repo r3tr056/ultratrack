@@ -191,3 +191,81 @@ TEST_CASE("TrackLifecycle marks confirmed track lost after max age", "[tracking_
     REQUIRE(track.state == TrackState::LOST);
     REQUIRE(life.shouldRemove(track));
 }
+
+TEST_CASE("TrackManager predicts and updates track bboxes", "[tracking_engine]") {
+    TrackManager::Config cfg;
+    auto tm = TrackManager::create(cfg);
+    REQUIRE(tm.has_value());
+
+    cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    cv::rectangle(frame, cv::Point(100, 100), cv::Point(140, 140), cv::Scalar(255, 255, 255), -1);
+
+    std::vector<Detection> dets;
+    dets.push_back({0, Rect2f(100, 100, 40, 40), 0.9f, 0, {}});
+    REQUIRE(tm.value()->update(dets, frame).ok());
+    REQUIRE(tm.value()->activeTracks().size() == 1);
+    REQUIRE(tm.value()->activeTracks()[0].age == 1);
+
+    // A second update with no detections exercises predictAll: the track ages and
+    // is counted as missed once, without duplicating misses from update's logic.
+    REQUIRE(tm.value()->update({}, frame).ok());
+
+    const auto& tracks = tm.value()->activeTracks();
+    REQUIRE(tracks.size() == 1);
+    REQUIRE(tracks[0].age == 2);
+    REQUIRE(tracks[0].time_since_update == 1);
+    REQUIRE(tracks[0].bbox.width >= 0);
+    REQUIRE(tracks[0].bbox.height >= 0);
+}
+
+TEST_CASE("TrackManager marks track missed when prediction fails", "[tracking_engine]") {
+    TrackManager::Config cfg;
+    auto tm = TrackManager::create(cfg);
+    REQUIRE(tm.has_value());
+
+    cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    cv::rectangle(frame, cv::Point(100, 100), cv::Point(140, 140), cv::Scalar(255, 255, 255), -1);
+
+    std::vector<Detection> dets;
+    dets.push_back({0, Rect2f(100, 100, 40, 40), 0.9f, 0, {}});
+    REQUIRE(tm.value()->update(dets, frame).ok());
+    REQUIRE(tm.value()->activeTracks().size() == 1);
+    REQUIRE(tm.value()->activeTracks()[0].time_since_update == 0);
+
+    // Empty frame causes KCF predict to fail; the track should be counted as missed once.
+    cv::Mat empty_frame;
+    REQUIRE(tm.value()->update(dets, empty_frame).ok());
+    REQUIRE(tm.value()->activeTracks().size() == 1);
+    REQUIRE(tm.value()->activeTracks()[0].time_since_update == 1);
+}
+
+TEST_CASE("TrackManager does not overwrite bbox when KCF update fails", "[tracking_engine]") {
+    TrackManager::Config cfg;
+    auto tm = TrackManager::create(cfg);
+    REQUIRE(tm.has_value());
+
+    cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    cv::rectangle(frame, cv::Point(100, 100), cv::Point(140, 140), cv::Scalar(255, 255, 255), -1);
+
+    std::vector<Detection> dets;
+    dets.push_back({0, Rect2f(100, 100, 40, 40), 0.9f, 0, {}});
+    REQUIRE(tm.value()->update(dets, frame).ok());
+    REQUIRE(tm.value()->activeTracks().size() == 1);
+    Rect2f old_bbox = tm.value()->activeTracks()[0].bbox;
+
+    // A frame type that triggers an OpenCV exception causes KCF update (and predict)
+    // to fail. The detection still overlaps the previous bbox, so association produces
+    // a match, but update rejects the patch and the track is treated as unmatched.
+    cv::Mat bad_frame = cv::Mat::zeros(480, 640, CV_16SC3);
+    std::vector<Detection> bad_dets;
+    bad_dets.push_back({0, Rect2f(100, 100, 40, 40), 0.9f, 0, {}});
+    REQUIRE(tm.value()->update(bad_dets, bad_frame).ok());
+
+    const auto& tracks = tm.value()->activeTracks();
+    REQUIRE(tracks.size() == 1);
+    REQUIRE(tracks[0].bbox.x == old_bbox.x);
+    REQUIRE(tracks[0].bbox.y == old_bbox.y);
+    REQUIRE(tracks[0].bbox.width == old_bbox.width);
+    REQUIRE(tracks[0].bbox.height == old_bbox.height);
+    REQUIRE(tracks[0].time_since_update == 1);
+}

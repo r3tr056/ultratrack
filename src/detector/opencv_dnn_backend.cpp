@@ -47,96 +47,103 @@ Result<std::vector<Detection>> OpenCVDNNBackend::detect(const Frame& frame) {
         if (outputs.empty()) {
             return std::vector<Detection>{};
         }
+        return parseYOLOOutput(outputs[0], frame, cfg_);
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::INFERENCE_FAILED, e.what());
+    }
+}
 
-        // Parse YOLO output. Two common layouts exist:
-        //   [1, dims, anchors]  (cols are anchor entries)
-        //   [1, anchors, dims]  (rows are anchor entries)
-        if (outputs[0].dims != 3 || outputs[0].size[0] != 1 ||
-            outputs[0].type() != CV_32F) {
-            return Status(ErrorCode::INFERENCE_FAILED,
-                          "unexpected network output shape: expected 3-D CV_32F tensor "
-                          "with batch size 1");
-        }
+Result<std::vector<Detection>> OpenCVDNNBackend::parseYOLOOutput(const cv::Mat& output,
+                                                                  const Frame& frame,
+                                                                  const Config& cfg) {
+    // Parse YOLO output. Two common layouts exist:
+    //   [1, dims, anchors]  (cols are anchor entries)
+    //   [1, anchors, dims]  (rows are anchor entries)
+    if (output.dims != 3 || output.size[0] != 1 || output.type() != CV_32F) {
+        return Status(ErrorCode::INFERENCE_FAILED,
+                      "unexpected network output shape: expected 3-D CV_32F tensor "
+                      "with batch size 1");
+    }
 
-        cv::Mat output = outputs[0];
-        int dims = 0;
-        int rows = 0;
-        if (output.size[1] > output.size[2] && output.size[1] >= 5) {
-            // Layout [1, dims, anchors]: second dimension holds the box/class vector.
-            dims = output.size[1];
-            rows = output.size[2];
-        } else if (output.size[2] > output.size[1] && output.size[2] >= 5) {
-            // Layout [1, anchors, dims]: transpose so dims is the inner dimension.
-            cv::Mat transposed;
-            const int perm[3] = {0, 2, 1};
-            cv::transposeND(output, std::vector<int>(perm, perm + 3), transposed);
-            output = transposed;
-            dims = output.size[1];
-            rows = output.size[2];
-        } else {
-            return Status(ErrorCode::INFERENCE_FAILED,
-                          "unrecognized network output shape: [" +
-                              std::to_string(output.size[0]) + ", " +
-                              std::to_string(output.size[1]) + ", " +
-                              std::to_string(output.size[2]) + "]");
-        }
+    cv::Mat parsed = output;
+    int dims = 0;
+    int rows = 0;
+    if (parsed.size[1] > parsed.size[2] && parsed.size[1] >= 5) {
+        // Layout [1, dims, anchors]: second dimension holds the box/class vector.
+        dims = parsed.size[1];
+        rows = parsed.size[2];
+    } else if (parsed.size[2] > parsed.size[1] && parsed.size[2] >= 5) {
+        // Layout [1, anchors, dims]: transpose so dims is the inner dimension.
+        cv::Mat transposed;
+        const int perm[3] = {0, 2, 1};
+        cv::transposeND(parsed, std::vector<int>(perm, perm + 3), transposed);
+        parsed = transposed;
+        dims = parsed.size[1];
+        rows = parsed.size[2];
+    } else {
+        return Status(ErrorCode::INFERENCE_FAILED,
+                      "unrecognized network output shape: [" +
+                          std::to_string(parsed.size[0]) + ", " +
+                          std::to_string(parsed.size[1]) + ", " +
+                          std::to_string(parsed.size[2]) + "]");
+    }
 
-        const float* data = output.ptr<float>();
-        if (dims < 5) {
-            return Status(ErrorCode::INFERENCE_FAILED,
-                          "invalid network output dimensions: " + std::to_string(dims));
-        }
+    const float* data = parsed.ptr<float>();
+    if (dims < 5) {
+        return Status(ErrorCode::INFERENCE_FAILED,
+                      "invalid network output dimensions: " + std::to_string(dims));
+    }
 
-        const float xf = frame.width / static_cast<float>(cfg_.input_size.width);
-        const float yf = frame.height / static_cast<float>(cfg_.input_size.height);
+    const float xf = frame.width / static_cast<float>(cfg.input_size.width);
+    const float yf = frame.height / static_cast<float>(cfg.input_size.height);
 
-        std::vector<cv::Rect> boxes;
-        std::vector<float> confidences;
-        std::vector<int> class_ids;
+    std::vector<cv::Rect> boxes;
+    std::vector<float> confidences;
+    std::vector<int> class_ids;
 
-        for (int i = 0; i < rows; ++i) {
-            const float* row = data + i * dims;
-            float obj_conf = row[4];
-            if (obj_conf < cfg_.confidence_threshold) continue;
+    for (int i = 0; i < rows; ++i) {
+        const float* row = data + i * dims;
+        float obj_conf = row[4];
+        if (obj_conf < cfg.confidence_threshold) continue;
 
-            int cls = 0;
-            double max_score = row[5];
+        int cls = 0;
+        double max_score = 1.0;
+        if (dims > 5) {
+            max_score = row[5];
             for (int k = 1; k < dims - 5; ++k) {
                 if (row[5 + k] > max_score) {
                     max_score = row[5 + k];
                     cls = k;
                 }
             }
-            if (max_score < cfg_.confidence_threshold) continue;
-
-            float cx = row[0], cy = row[1], w = row[2], h = row[3];
-            if (w <= 0 || h <= 0) continue;
-
-            cv::Rect box(static_cast<int>((cx - w / 2) * xf),
-                         static_cast<int>((cy - h / 2) * yf),
-                         static_cast<int>(w * xf),
-                         static_cast<int>(h * yf));
-            boxes.push_back(box);
-            confidences.push_back(obj_conf);
-            class_ids.push_back(cls);
         }
+        if (max_score < cfg.confidence_threshold) continue;
 
-        std::vector<int> indices;
-        cv::dnn::NMSBoxes(boxes, confidences, cfg_.confidence_threshold,
-                          cfg_.nms_threshold, indices);
+        float cx = row[0], cy = row[1], w = row[2], h = row[3];
+        if (w <= 0 || h <= 0) continue;
 
-        std::vector<Detection> detections;
-        for (int idx : indices) {
-            Detection d;
-            d.bbox = Rect2f(boxes[idx]);
-            d.confidence = confidences[idx];
-            d.class_id = class_ids[idx];
-            detections.push_back(d);
-        }
-        return detections;
-    } catch (const std::exception& e) {
-        return Status(ErrorCode::INFERENCE_FAILED, e.what());
+        cv::Rect box(static_cast<int>((cx - w / 2) * xf),
+                     static_cast<int>((cy - h / 2) * yf),
+                     static_cast<int>(w * xf),
+                     static_cast<int>(h * yf));
+        boxes.push_back(box);
+        confidences.push_back(obj_conf);
+        class_ids.push_back(cls);
     }
+
+    std::vector<int> indices;
+    cv::dnn::NMSBoxes(boxes, confidences, cfg.confidence_threshold,
+                      cfg.nms_threshold, indices);
+
+    std::vector<Detection> detections;
+    for (int idx : indices) {
+        Detection d;
+        d.bbox = Rect2f(boxes[idx]);
+        d.confidence = confidences[idx];
+        d.class_id = class_ids[idx];
+        detections.push_back(d);
+    }
+    return detections;
 }
 
 } // namespace ultratrack

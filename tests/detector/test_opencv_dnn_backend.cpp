@@ -98,3 +98,44 @@ TEST_CASE("OpenCVDNNBackend creates with CUDA flag enabled", "[detector]") {
     auto backend = OpenCVDNNBackend::create(cfg);
     REQUIRE(backend.has_value());
 }
+
+TEST_CASE("OpenCVDNNBackend handles single-class output (dims == 5)", "[detector]") {
+    // Layout [1, dims, anchors] with dims == 5 (no class-score entries).
+    int sizes[] = {1, 5, 2};
+    cv::Mat output(3, sizes, CV_32F);
+    float* data = output.ptr<float>();
+    // Anchor 0: [cx=100, cy=100, w=40, h=40, obj_conf=0.9]
+    data[0] = 100.0f;
+    data[1] = 100.0f;
+    data[2] = 40.0f;
+    data[3] = 40.0f;
+    data[4] = 0.9f;
+    // Anchor 1: [cx=200, cy=200, w=50, h=50, obj_conf=0.8]
+    data[5] = 200.0f;
+    data[6] = 200.0f;
+    data[7] = 50.0f;
+    data[8] = 50.0f;
+    data[9] = 0.8f;
+
+    OpenCVDNNBackend::Config cfg{"models/test.onnx"};
+    cfg.input_size = cv::Size(640, 640);
+    cfg.confidence_threshold = 0.3f;
+
+    Frame frame;
+    frame.width = 640;
+    frame.height = 480;
+    frame.format = FrameFormat::BGR;
+
+    auto result = OpenCVDNNBackend::parseYOLOOutput(output, frame, cfg);
+    REQUIRE(result.has_value());
+
+    const auto& detections = result.value();
+    REQUIRE(detections.size() == 2);
+    for (const auto& d : detections) {
+        REQUIRE(d.bbox.width > 0);
+        REQUIRE(d.bbox.height > 0);
+        REQUIRE(d.confidence >= cfg.confidence_threshold);
+        REQUIRE(d.confidence <= 1.0f);
+        REQUIRE(d.class_id == 0);
+    }
+}

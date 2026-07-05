@@ -54,3 +54,15 @@ TEST_CASE("Percentile is computed from ordered values", "[telemetry]") {
     REQUIRE(metrics.at("stage_p50_ms") == 20.0);
     REQUIRE(metrics.at("stage_avg_ms") == 20.0);
 }
+
+TEST_CASE("Median averages middle values for even sample sizes", "[telemetry]") {
+    MetricsCollector collector;
+    collector.record("stage", 10.0);
+    collector.record("stage", 20.0);
+    collector.record("stage", 30.0);
+    collector.record("stage", 40.0);
+
+    auto metrics = collector.snapshot();
+    REQUIRE(metrics.at("stage_count") == 4.0);
+    REQUIRE(metrics.at("stage_p50_ms") == 25.0);
+}

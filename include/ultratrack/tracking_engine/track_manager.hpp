@@ -27,7 +27,7 @@ private:
     std::unique_ptr<KCFTracker> kcf_;
     uint64_t next_id_ = 1;
 
-    void predictAll(const cv::Mat& frame);
+    std::vector<bool> predictAll(const cv::Mat& frame);
     void createNewTracks(const std::vector<Detection>& unmatched, const cv::Mat& frame);
 };
 

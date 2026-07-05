@@ -1,6 +1,7 @@
 #include <ultratrack/benchmark/harness.hpp>
 #include <ultratrack/ultratrack_sdk.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <spdlog/spdlog.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -146,6 +147,7 @@ BenchmarkResult BenchmarkHarness::runVariant(const std::string& name,
         if (initialized_here) UltraTrackerSDK::shutdown();
         return result;
     } catch (const std::exception& e) {
+        spdlog::warn("BenchmarkHarness::runVariant '{}' failed: {}", name, e.what());
         result.metrics.avg_latency_ms = -1.0;
         if (initialized_here) UltraTrackerSDK::shutdown();
         return result;

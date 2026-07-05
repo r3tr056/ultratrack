@@ -18,6 +18,11 @@ public:
     static Result<std::unique_ptr<IDetectorBackend>> create(const Config& cfg);
     Result<std::vector<Detection>> detect(const Frame& frame) override;
 
+    /// Parse a YOLO-style 3-D network output into detections. Exposed for testing.
+    static Result<std::vector<Detection>> parseYOLOOutput(const cv::Mat& output,
+                                                           const Frame& frame,
+                                                           const Config& cfg);
+
 private:
     OpenCVDNNBackend(cv::dnn::Net net, const Config& cfg);
     cv::dnn::Net net_;
