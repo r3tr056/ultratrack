@@ -50,6 +50,7 @@ public:
     bool has_value() const { return std::holds_alternative<T>(data_); }
     bool ok() const { return has_value(); }
 
+
     /// Returns the contained value.
     /// @pre The Result is in the value state (has_value() == true).
     ///      Calling this on an error Result terminates the program.
@@ -120,6 +121,42 @@ public:
 
 private:
     std::variant<T, Status> data_;
+};
+
+/// Specialization of Result for operations that produce no value on success.
+template <>
+class Result<void> {
+public:
+    Result() : status_() {}
+    Result(Status error) : status_(std::move(error)) {}
+
+    bool has_value() const { return status_.ok(); }
+    bool ok() const { return status_.ok(); }
+
+    /// No-op for the success state.
+    void value() const noexcept {
+        assert(status_.ok() && "Result<void>::value() called on an error Result");
+    }
+
+    /// Returns the contained error Status.
+    Status& error() noexcept { return status_; }
+    const Status& error() const noexcept { return status_; }
+
+    /// Returns the contained error or @p default_status if this is a value.
+    Status error_or(const Status& default_status) const noexcept {
+        return status_.ok() ? default_status : status_;
+    }
+
+    template <typename F>
+    auto map(F&& f) -> Result<std::invoke_result_t<F>> {
+        if (status_.ok()) {
+            return f();
+        }
+        return status_;
+    }
+
+private:
+    Status status_;
 };
 
 } // namespace ultratrack

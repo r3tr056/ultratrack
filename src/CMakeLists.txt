@@ -1,5 +1,7 @@
 set(ULTRATRACK_SOURCES
     ultratrack.cpp
+    ultratrack_sdk.cpp
+    tracking_session.cpp
     simd_optimization.cpp
     core/result.cpp
     core/types.cpp

@@ -1,6 +1,7 @@
 find_package(Catch2 3 REQUIRED)
 
 add_executable(ultratrack_tests
+    test_public_api.cpp
     test_displacement.cpp
     test_scale.cpp
     test_features.cpp
