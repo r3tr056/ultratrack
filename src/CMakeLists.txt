@@ -1,6 +1,9 @@
 set(ULTRATRACK_SOURCES
     ultratrack.cpp
     simd_optimization.cpp
+    core/result.cpp
+    core/types.cpp
+    core/math.cpp
     features/feature_extractor.cpp
     features/hog_feature.cpp
     features/gray_feature.cpp
