@@ -22,7 +22,8 @@ enum class ErrorCode {
     PTZ_CONNECTION_FAILED,
     CONFIG_PARSE_FAILED,
     NOT_IMPLEMENTED,
-    UNKNOWN
+    UNKNOWN,
+    INTERNAL_ERROR
 };
 
 class Status {

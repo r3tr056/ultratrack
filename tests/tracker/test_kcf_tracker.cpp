@@ -136,7 +136,7 @@ TEST_CASE("KCFTracker update rejects empty frame", "[tracker]") {
     cv::Mat empty_frame;
     auto status = tracker.value()->update(track, empty_frame, old_bbox);
     REQUIRE(!status.ok());
-    REQUIRE(status.code() == ErrorCode::INVALID_PATCH_SIZE);
+    REQUIRE(status.code() == ErrorCode::EMPTY_FRAME);
 }
 
 TEST_CASE("KCFTracker catches OpenCV exceptions and returns Status", "[tracker]") {

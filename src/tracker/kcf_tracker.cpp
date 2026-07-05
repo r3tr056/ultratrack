@@ -11,9 +11,15 @@ Result<std::unique_ptr<KCFTracker>> KCFTracker::create(const Config& cfg) {
     }
     try {
         return std::unique_ptr<KCFTracker>(new KCFTracker(cfg));
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED,
+                      std::string("failed to create KCF tracker: ") + e.what());
     } catch (const std::exception& e) {
         return Status(ErrorCode::FEATURE_EXTRACTION_FAILED,
                       std::string("failed to create KCF tracker: ") + e.what());
+    } catch (...) {
+        return Status(ErrorCode::INTERNAL_ERROR,
+                      "failed to create KCF tracker: unknown error");
     }
 }
 
@@ -57,6 +63,8 @@ Status KCFTracker::init(Track& track, const cv::Mat& frame) {
         return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
     } catch (const std::exception& e) {
         return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
+    } catch (...) {
+        return Status(ErrorCode::INTERNAL_ERROR, "unknown error");
     }
 }
 
@@ -145,11 +153,17 @@ Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
         return Status(ErrorCode::TRACKING_LOST, e.what());
     } catch (const std::exception& e) {
         return Status(ErrorCode::TRACKING_LOST, e.what());
+    } catch (...) {
+        return Result<Rect2f>(Status(ErrorCode::INTERNAL_ERROR, "unknown error"));
     }
 }
 
 Status KCFTracker::update(Track& track, const cv::Mat& frame, const Rect2f& detected_bbox) {
     try {
+        if (frame.empty()) {
+            return Status(ErrorCode::EMPTY_FRAME, "empty frame");
+        }
+
         cv::Rect safe = cv::Rect(detected_bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
         if (safe.area() <= 0) {
             return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid update bbox");
@@ -174,6 +188,8 @@ Status KCFTracker::update(Track& track, const cv::Mat& frame, const Rect2f& dete
         return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
     } catch (const std::exception& e) {
         return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
+    } catch (...) {
+        return Status(ErrorCode::INTERNAL_ERROR, "unknown error");
     }
 }
 

@@ -14,6 +14,7 @@ set(ULTRATRACK_SOURCES
     tracker/scale_estimator.cpp
     tracker/kcf_tracker.cpp
     tracker/simd_helpers.cpp
+    tracker/kalman.cpp
 )
 
 add_library(ultratrack STATIC ${ULTRATRACK_SOURCES})
