@@ -12,6 +12,8 @@ set(ULTRATRACK_SOURCES
     tracker/features/cn_feature.cpp
     tracker/displacement_predictor.cpp
     tracker/scale_estimator.cpp
+    tracker/kcf_tracker.cpp
+    tracker/simd_helpers.cpp
 )
 
 add_library(ultratrack STATIC ${ULTRATRACK_SOURCES})

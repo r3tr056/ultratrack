@@ -8,6 +8,7 @@ add_executable(ultratrack_tests
     core/test_result.cpp
     core/test_math.cpp
     detector/test_opencv_dnn_backend.cpp
+    tracker/test_kcf_tracker.cpp
 )
 
 target_link_libraries(ultratrack_tests PRIVATE ultratrack Catch2::Catch2WithMain)

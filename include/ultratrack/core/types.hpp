@@ -40,6 +40,7 @@ struct Track {
     cv::Mat kalman_state;
     cv::Mat kalman_covariance;
     cv::Mat appearance_feature;
+    cv::Mat correlation_filter;
 };
 
 } // namespace ultratrack
