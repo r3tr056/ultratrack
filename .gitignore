@@ -1,5 +1,7 @@
 ##### Workspace
 .worktrees/
+.vcpkg/
+vcpkg/
 
 ##### Windows
 # Windows thumbnail cache files
