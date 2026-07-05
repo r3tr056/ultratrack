@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <numeric>
 #include <chrono>
-#include <filesystem>
 
 namespace ultratrack {
 
@@ -128,6 +127,9 @@ BenchmarkResult BenchmarkHarness::runVariant(const std::string& name,
                 std::accumulate(latencies.begin(), latencies.end(), 0.0) /
                 static_cast<double>(latencies.size());
             std::sort(latencies.begin(), latencies.end());
+            // Use a floor index for the 95th percentile to stay simple and
+            // deterministic for small sequences; for large N this converges
+            // to the standard p95.
             const size_t p95_index = static_cast<size_t>(latencies.size() * 0.95);
             result.metrics.p95_latency_ms = latencies[std::min(p95_index, latencies.size() - 1)];
         }

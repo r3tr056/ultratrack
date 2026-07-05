@@ -36,6 +36,11 @@ if(ULTRATRACK_WITH_ONNXRUNTIME)
 endif()
 
 # -----------------------------------------------------------------------------
+# Install directories (must be defined before subdirectories use them)
+# -----------------------------------------------------------------------------
+include(GNUInstallDirs)
+
+# -----------------------------------------------------------------------------
 # Targets
 # -----------------------------------------------------------------------------
 add_subdirectory(src)
@@ -56,7 +61,6 @@ endif()
 # -----------------------------------------------------------------------------
 # Install / export
 # -----------------------------------------------------------------------------
-include(GNUInstallDirs)
 
 install(TARGETS ultratrack EXPORT ultratrack-targets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
