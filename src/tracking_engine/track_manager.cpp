@@ -1,4 +1,5 @@
 #include <ultratrack/tracking_engine/track_manager.hpp>
+#include <ultratrack/tracking_engine/data_association.hpp>
 #include <ultratrack/core/math.hpp>
 #include <algorithm>
 
@@ -27,36 +28,34 @@ Status TrackManager::update(const std::vector<Detection>& detections, const cv::
     try {
         predictAll(frame);
 
-        std::vector<bool> det_matched(detections.size(), false);
-        std::vector<bool> track_matched(tracks_.size(), false);
+        DataAssociation::Config assoc_cfg;
+        assoc_cfg.iou_threshold = 0.3f;
+        DataAssociation association(assoc_cfg);
+        auto assoc_result = association.associate(tracks_, detections);
 
-        // Greedy IoU association for skeleton; replaced by Hungarian in Task 7
-        for (size_t i = 0; i < tracks_.size(); ++i) {
-            float best_iou = 0.3f; // gating threshold
-            int best_j = -1;
-            for (size_t j = 0; j < detections.size(); ++j) {
-                if (det_matched[j]) continue;
-                float iou = IoU(tracks_[i].bbox, detections[j].bbox);
-                if (iou > best_iou) {
-                    best_iou = iou;
-                    best_j = static_cast<int>(j);
-                }
-            }
-            if (best_j >= 0) {
-                TrackLifecycle life(cfg_.lifecycle);
-                life.onMatched(tracks_[i]);
-                tracks_[i].bbox = detections[best_j].bbox;
-                tracks_[i].confidence = detections[best_j].confidence;
-                kcf_->update(tracks_[i], frame, detections[best_j].bbox);
-                det_matched[best_j] = true;
-                track_matched[i] = true;
-            }
+        std::vector<bool> det_matched(detections.size(), false);
+        TrackLifecycle life(cfg_.lifecycle);
+
+        for (const auto& match : assoc_result.matches) {
+            size_t i = match.first;
+            size_t j = match.second;
+            life.onMatched(tracks_[i]);
+            tracks_[i].bbox = detections[j].bbox;
+            tracks_[i].confidence = detections[j].confidence;
+            kcf_->update(tracks_[i], frame, detections[j].bbox);
+            det_matched[j] = true;
         }
 
         // Mark missed tracks
-        TrackLifecycle life(cfg_.lifecycle);
         for (size_t i = 0; i < tracks_.size(); ++i) {
-            if (!track_matched[i]) {
+            bool matched = false;
+            for (const auto& m : assoc_result.matches) {
+                if (m.first == i) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
                 life.onMissed(tracks_[i]);
             }
         }
