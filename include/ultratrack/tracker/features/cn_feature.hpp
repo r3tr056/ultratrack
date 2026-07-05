@@ -1,4 +1,4 @@
-// include/features/cn_feature.hpp
+// include/ultratrack/tracker/features/cn_feature.hpp
 #ifndef ULTRATRACK_CN_FEATURE_HPP
 #define ULTRATRACK_CN_FEATURE_HPP
 

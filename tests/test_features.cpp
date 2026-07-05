@@ -1,8 +1,8 @@
 // tests/test_features.cpp
-#include "feature_extractor.hpp"
-#include "features/hog_feature.hpp"
-#include "features/gray_feature.hpp"
-#include "features/cn_feature.hpp"
+#include <ultratrack/tracker/features/feature_extractor.hpp>
+#include <ultratrack/tracker/features/hog_feature.hpp>
+#include <ultratrack/tracker/features/gray_feature.hpp>
+#include <ultratrack/tracker/features/cn_feature.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <iostream>
 

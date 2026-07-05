@@ -1,5 +1,5 @@
-// src/tracking/displacement_predictor.cpp
-#include "tracking/displacement_predictor.hpp"
+// src/tracker/displacement_predictor.cpp
+#include <ultratrack/tracker/displacement_predictor.hpp>
 #include <cmath>
 
 namespace ultratrack {

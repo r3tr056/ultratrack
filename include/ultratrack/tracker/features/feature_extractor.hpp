@@ -1,4 +1,4 @@
-// include/feature_extractor.hpp
+// include/ultratrack/tracker/features/feature_extractor.hpp
 #ifndef ULTRATRACK_FEATURE_EXTRACTOR_HPP
 #define ULTRATRACK_FEATURE_EXTRACTOR_HPP
 

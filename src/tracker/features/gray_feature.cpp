@@ -1,5 +1,5 @@
-// src/features/gray_feature.cpp
-#include "features/gray_feature.hpp"
+// src/tracker/features/gray_feature.cpp
+#include <ultratrack/tracker/features/gray_feature.hpp>
 #include "errors.hpp"
 
 namespace ultratrack {

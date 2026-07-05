@@ -6,12 +6,12 @@ set(ULTRATRACK_SOURCES
     core/math.cpp
     detector/opencv_dnn_backend.cpp
     detector/detector_factory.cpp
-    features/feature_extractor.cpp
-    features/hog_feature.cpp
-    features/gray_feature.cpp
-    features/cn_feature.cpp
-    tracking/displacement_predictor.cpp
-    tracking/scale_estimator.cpp
+    tracker/features/feature_extractor.cpp
+    tracker/features/hog_feature.cpp
+    tracker/features/gray_feature.cpp
+    tracker/features/cn_feature.cpp
+    tracker/displacement_predictor.cpp
+    tracker/scale_estimator.cpp
 )
 
 add_library(ultratrack STATIC ${ULTRATRACK_SOURCES})

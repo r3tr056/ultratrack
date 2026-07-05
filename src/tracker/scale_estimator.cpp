@@ -1,5 +1,5 @@
-// src/tracking/scale_estimator.cpp
-#include "tracking/scale_estimator.hpp"
+// src/tracker/scale_estimator.cpp
+#include <ultratrack/tracker/scale_estimator.hpp>
 #include "errors.hpp"
 #include <algorithm>
 #include <cmath>

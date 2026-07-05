@@ -1,5 +1,5 @@
-// src/features/hog_feature.cpp
-#include "features/hog_feature.hpp"
+// src/tracker/features/hog_feature.cpp
+#include <ultratrack/tracker/features/hog_feature.hpp>
 #include "errors.hpp"
 #include <cmath>
 

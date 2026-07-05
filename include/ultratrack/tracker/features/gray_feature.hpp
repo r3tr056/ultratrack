@@ -1,4 +1,4 @@
-// include/features/gray_feature.hpp
+// include/ultratrack/tracker/features/gray_feature.hpp
 #ifndef ULTRATRACK_GRAY_FEATURE_HPP
 #define ULTRATRACK_GRAY_FEATURE_HPP
 

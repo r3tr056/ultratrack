@@ -1,5 +1,5 @@
 // tests/test_scale.cpp
-#include "tracking/scale_estimator.hpp"
+#include <ultratrack/tracker/scale_estimator.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 

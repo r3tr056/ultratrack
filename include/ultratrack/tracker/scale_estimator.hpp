@@ -1,4 +1,4 @@
-// include/tracking/scale_estimator.hpp
+// include/ultratrack/tracker/scale_estimator.hpp
 #ifndef ULTRATRACK_SCALE_ESTIMATOR_HPP
 #define ULTRATRACK_SCALE_ESTIMATOR_HPP
 

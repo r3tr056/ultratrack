@@ -1,4 +1,4 @@
-// include/features/hog_feature.hpp
+// include/ultratrack/tracker/features/hog_feature.hpp
 #ifndef ULTRATRACK_HOG_FEATURE_HPP
 #define ULTRATRACK_HOG_FEATURE_HPP
 

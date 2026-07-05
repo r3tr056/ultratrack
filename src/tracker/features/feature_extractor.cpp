@@ -1,8 +1,8 @@
-// src/features/feature_extractor.cpp
-#include "feature_extractor.hpp"
-#include "features/hog_feature.hpp"
-#include "features/gray_feature.hpp"
-#include "features/cn_feature.hpp"
+// src/tracker/features/feature_extractor.cpp
+#include <ultratrack/tracker/features/feature_extractor.hpp>
+#include <ultratrack/tracker/features/hog_feature.hpp>
+#include <ultratrack/tracker/features/gray_feature.hpp>
+#include <ultratrack/tracker/features/cn_feature.hpp>
 #include "errors.hpp"
 
 namespace ultratrack {
