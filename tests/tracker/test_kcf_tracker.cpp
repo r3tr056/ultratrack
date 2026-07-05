@@ -100,6 +100,74 @@ TEST_CASE("KCFTracker update rejects invalid bbox", "[tracker]") {
     REQUIRE(track.bbox.y == old_bbox.y);
 }
 
+TEST_CASE("KCFTracker predict rejects empty frame", "[tracker]") {
+    KCFTracker::Config cfg;
+    cfg.template_size = cv::Size(64, 64);
+    auto tracker = KCFTracker::create(cfg);
+    REQUIRE(tracker.has_value());
+
+    Track track;
+    track.bbox = Rect2f(100, 100, 40, 40);
+    cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    cv::rectangle(frame, cv::Point(100, 100), cv::Point(140, 140), cv::Scalar(255, 255, 255), -1);
+
+    REQUIRE(tracker.value()->init(track, frame).ok());
+
+    cv::Mat empty_frame;
+    auto pred = tracker.value()->predict(track, empty_frame);
+    REQUIRE(!pred.has_value());
+    REQUIRE(pred.error().code() == ErrorCode::EMPTY_FRAME);
+}
+
+TEST_CASE("KCFTracker update rejects empty frame", "[tracker]") {
+    KCFTracker::Config cfg;
+    cfg.template_size = cv::Size(64, 64);
+    auto tracker = KCFTracker::create(cfg);
+    REQUIRE(tracker.has_value());
+
+    Track track;
+    track.bbox = Rect2f(100, 100, 40, 40);
+    cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    cv::rectangle(frame, cv::Point(100, 100), cv::Point(140, 140), cv::Scalar(255, 255, 255), -1);
+
+    REQUIRE(tracker.value()->init(track, frame).ok());
+    Rect2f old_bbox = track.bbox;
+
+    cv::Mat empty_frame;
+    auto status = tracker.value()->update(track, empty_frame, old_bbox);
+    REQUIRE(!status.ok());
+    REQUIRE(status.code() == ErrorCode::INVALID_PATCH_SIZE);
+}
+
+TEST_CASE("KCFTracker catches OpenCV exceptions and returns Status", "[tracker]") {
+    KCFTracker::Config cfg;
+    cfg.template_size = cv::Size(64, 64);
+    auto tracker = KCFTracker::create(cfg);
+    REQUIRE(tracker.has_value());
+
+    Track track;
+    track.bbox = Rect2f(10, 10, 50, 50);
+    // CV_16SC3 is not supported by cv::COLOR_BGR2GRAY and will trigger a cv::Exception.
+    cv::Mat bad_frame = cv::Mat::zeros(100, 100, CV_16SC3);
+
+    auto init_status = tracker.value()->init(track, bad_frame);
+    REQUIRE(!init_status.ok());
+    REQUIRE(init_status.code() == ErrorCode::FEATURE_EXTRACTION_FAILED);
+
+    // Initialize on a valid frame so we can exercise predict/update exception paths.
+    cv::Mat frame = cv::Mat::zeros(100, 100, CV_8UC3);
+    cv::rectangle(frame, cv::Point(10, 10), cv::Point(60, 60), cv::Scalar(255, 255, 255), -1);
+    REQUIRE(tracker.value()->init(track, frame).ok());
+
+    auto pred = tracker.value()->predict(track, bad_frame);
+    REQUIRE(!pred.has_value());
+    REQUIRE(pred.error().code() == ErrorCode::TRACKING_LOST);
+
+    auto update_status = tracker.value()->update(track, bad_frame, track.bbox);
+    REQUIRE(!update_status.ok());
+    REQUIRE(update_status.code() == ErrorCode::FEATURE_EXTRACTION_FAILED);
+}
+
 TEST_CASE("KCFTracker update refreshes the filter", "[tracker]") {
     KCFTracker::Config cfg;
     cfg.template_size = cv::Size(64, 64);

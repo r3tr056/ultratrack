@@ -1,12 +1,19 @@
 #include "simd_helpers.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 
 namespace ultratrack {
 namespace internal {
 
 cv::Mat create_hann_window(int size) {
+    if (size <= 0) {
+        return cv::Mat();
+    }
+    if (size == 1) {
+        return cv::Mat::ones(1, 1, CV_32F);
+    }
     cv::Mat hann(1, size, CV_32F);
     float* data = hann.ptr<float>();
     for (int i = 0; i < size; i++) {

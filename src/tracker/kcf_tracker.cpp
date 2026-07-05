@@ -37,126 +37,144 @@ cv::Mat KCFTracker::createHannWindow(int size) {
 }
 
 Status KCFTracker::init(Track& track, const cv::Mat& frame) {
-    if (frame.empty()) {
-        return Status(ErrorCode::EMPTY_FRAME, "empty frame");
-    }
+    try {
+        if (frame.empty()) {
+            return Status(ErrorCode::EMPTY_FRAME, "empty frame");
+        }
 
-    cv::Rect safe = cv::Rect(track.bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
-    if (safe.area() <= 0) {
-        return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid bbox");
-    }
+        cv::Rect safe = cv::Rect(track.bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
+        if (safe.area() <= 0) {
+            return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid bbox");
+        }
 
-    cv::Mat patch = frame(safe);
-    track.correlation_filter = createFilter(patch);
-    if (track.correlation_filter.empty()) {
-        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "failed to create correlation filter");
+        cv::Mat patch = frame(safe);
+        track.correlation_filter = createFilter(patch);
+        if (track.correlation_filter.empty()) {
+            return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "failed to create correlation filter");
+        }
+        return Status();
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
     }
-    return Status();
 }
 
 Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
-    if (track.correlation_filter.empty()) {
-        return Status(ErrorCode::TRACKING_LOST, "no correlation filter");
+    try {
+        if (track.correlation_filter.empty()) {
+            return Status(ErrorCode::TRACKING_LOST, "no correlation filter");
+        }
+        if (frame.empty()) {
+            return Status(ErrorCode::EMPTY_FRAME, "empty frame");
+        }
+
+        // Build a search region centred on the current bbox, twice the object size.
+        cv::Rect2f search_bbox = track.bbox;
+        constexpr float scale_factor = 2.0f;
+        search_bbox.x -= search_bbox.width * (scale_factor - 1.0f) / 2.0f;
+        search_bbox.y -= search_bbox.height * (scale_factor - 1.0f) / 2.0f;
+        search_bbox.width *= scale_factor;
+        search_bbox.height *= scale_factor;
+
+        cv::Rect safe_search = cv::Rect(search_bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
+        if (safe_search.area() <= 0) {
+            return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid search region");
+        }
+
+        cv::Mat search_patch = frame(safe_search);
+        cv::Mat resized_search;
+        cv::resize(search_patch, resized_search, cfg_.template_size);
+
+        cv::Mat gray_search;
+        if (resized_search.channels() == 3) {
+            cv::cvtColor(resized_search, gray_search, cv::COLOR_BGR2GRAY);
+        } else {
+            gray_search = resized_search.clone();
+        }
+
+        cv::Mat float_search;
+        gray_search.convertTo(float_search, CV_32F, 1.0 / 255.0);
+
+        internal::simd_hann_window(float_search.ptr<float>(), hann_window_.ptr<float>(),
+                                   float_search.ptr<float>(), static_cast<int>(float_search.total()));
+
+        cv::Mat search_fft = internal::fft2d(float_search);
+        if (search_fft.empty()) {
+            return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "search fft failed");
+        }
+
+        cv::Mat response_fft(track.correlation_filter.size(), track.correlation_filter.type());
+        internal::simd_mul_spectrums(track.correlation_filter.ptr<float>(), search_fft.ptr<float>(),
+                                     response_fft.ptr<float>(),
+                                     static_cast<int>(track.correlation_filter.total()), true);
+
+        cv::Mat response = internal::ifft2d(response_fft);
+        if (response.empty()) {
+            return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "response ifft failed");
+        }
+
+        // Locate the peak in the correlation response.
+        double min_val = 0.0;
+        double max_val = 0.0;
+        cv::Point min_loc;
+        cv::Point max_loc;
+        cv::minMaxLoc(response, &min_val, &max_val, &min_loc, &max_loc);
+
+        const float center_x = static_cast<float>(cfg_.template_size.width) * 0.5f;
+        const float center_y = static_cast<float>(cfg_.template_size.height) * 0.5f;
+        const float dx_map = static_cast<float>(max_loc.x) - center_x;
+        const float dy_map = static_cast<float>(max_loc.y) - center_y;
+
+        // Map the displacement from response space back to image space.
+        const float scale_x = static_cast<float>(safe_search.width) / static_cast<float>(cfg_.template_size.width);
+        const float scale_y = static_cast<float>(safe_search.height) / static_cast<float>(cfg_.template_size.height);
+
+        const float dx_frame = dx_map * scale_x;
+        const float dy_frame = dy_map * scale_y;
+
+        const cv::Point2f old_center(track.bbox.x + track.bbox.width * 0.5f,
+                                     track.bbox.y + track.bbox.height * 0.5f);
+        const cv::Point2f new_center(old_center.x + dx_frame, old_center.y + dy_frame);
+
+        track.bbox.x = new_center.x - track.bbox.width * 0.5f;
+        track.bbox.y = new_center.y - track.bbox.height * 0.5f;
+
+        return track.bbox;
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::TRACKING_LOST, e.what());
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::TRACKING_LOST, e.what());
     }
-    if (frame.empty()) {
-        return Status(ErrorCode::EMPTY_FRAME, "empty frame");
-    }
-
-    // Build a search region centred on the current bbox, twice the object size.
-    cv::Rect2f search_bbox = track.bbox;
-    constexpr float scale_factor = 2.0f;
-    search_bbox.x -= search_bbox.width * (scale_factor - 1.0f) / 2.0f;
-    search_bbox.y -= search_bbox.height * (scale_factor - 1.0f) / 2.0f;
-    search_bbox.width *= scale_factor;
-    search_bbox.height *= scale_factor;
-
-    cv::Rect safe_search = cv::Rect(search_bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
-    if (safe_search.area() <= 0) {
-        return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid search region");
-    }
-
-    cv::Mat search_patch = frame(safe_search);
-    cv::Mat resized_search;
-    cv::resize(search_patch, resized_search, cfg_.template_size);
-
-    cv::Mat gray_search;
-    if (resized_search.channels() == 3) {
-        cv::cvtColor(resized_search, gray_search, cv::COLOR_BGR2GRAY);
-    } else {
-        gray_search = resized_search.clone();
-    }
-
-    cv::Mat float_search;
-    gray_search.convertTo(float_search, CV_32F, 1.0 / 255.0);
-
-    internal::simd_hann_window(float_search.ptr<float>(), hann_window_.ptr<float>(),
-                               float_search.ptr<float>(), static_cast<int>(float_search.total()));
-
-    cv::Mat search_fft = internal::fft2d(float_search);
-    if (search_fft.empty()) {
-        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "search fft failed");
-    }
-
-    cv::Mat response_fft(track.correlation_filter.size(), track.correlation_filter.type());
-    internal::simd_mul_spectrums(track.correlation_filter.ptr<float>(), search_fft.ptr<float>(),
-                                 response_fft.ptr<float>(),
-                                 static_cast<int>(track.correlation_filter.total()), true);
-
-    cv::Mat response = internal::ifft2d(response_fft);
-    if (response.empty()) {
-        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "response ifft failed");
-    }
-
-    // Locate the peak in the correlation response.
-    double min_val = 0.0;
-    double max_val = 0.0;
-    cv::Point min_loc;
-    cv::Point max_loc;
-    cv::minMaxLoc(response, &min_val, &max_val, &min_loc, &max_loc);
-
-    const float center_x = static_cast<float>(cfg_.template_size.width) * 0.5f;
-    const float center_y = static_cast<float>(cfg_.template_size.height) * 0.5f;
-    const float dx_map = static_cast<float>(max_loc.x) - center_x;
-    const float dy_map = static_cast<float>(max_loc.y) - center_y;
-
-    // Map the displacement from response space back to image space.
-    const float scale_x = static_cast<float>(safe_search.width) / static_cast<float>(cfg_.template_size.width);
-    const float scale_y = static_cast<float>(safe_search.height) / static_cast<float>(cfg_.template_size.height);
-
-    const float dx_frame = dx_map * scale_x;
-    const float dy_frame = dy_map * scale_y;
-
-    const cv::Point2f old_center(track.bbox.x + track.bbox.width * 0.5f,
-                                 track.bbox.y + track.bbox.height * 0.5f);
-    const cv::Point2f new_center(old_center.x + dx_frame, old_center.y + dy_frame);
-
-    track.bbox.x = new_center.x - track.bbox.width * 0.5f;
-    track.bbox.y = new_center.y - track.bbox.height * 0.5f;
-
-    return track.bbox;
 }
 
 Status KCFTracker::update(Track& track, const cv::Mat& frame, const Rect2f& detected_bbox) {
-    cv::Rect safe = cv::Rect(detected_bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
-    if (safe.area() <= 0) {
-        return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid update bbox");
-    }
+    try {
+        cv::Rect safe = cv::Rect(detected_bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
+        if (safe.area() <= 0) {
+            return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid update bbox");
+        }
 
-    track.bbox = detected_bbox;
+        track.bbox = detected_bbox;
 
-    cv::Mat patch = frame(safe);
-    cv::Mat new_filter = createFilter(patch);
-    if (new_filter.empty()) {
-        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "filter update failed");
-    }
+        cv::Mat patch = frame(safe);
+        cv::Mat new_filter = createFilter(patch);
+        if (new_filter.empty()) {
+            return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "filter update failed");
+        }
 
-    if (track.correlation_filter.empty()) {
-        track.correlation_filter = new_filter.clone();
-    } else {
-        track.correlation_filter = (1.0f - cfg_.learning_rate) * track.correlation_filter +
-                                   cfg_.learning_rate * new_filter;
+        if (track.correlation_filter.empty()) {
+            track.correlation_filter = new_filter.clone();
+        } else {
+            track.correlation_filter = (1.0f - cfg_.learning_rate) * track.correlation_filter +
+                                       cfg_.learning_rate * new_filter;
+        }
+        return Status();
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, e.what());
     }
-    return Status();
 }
 
 cv::Mat KCFTracker::createFilter(const cv::Mat& patch) {
