@@ -100,8 +100,7 @@ cv::Mat fft2d(const cv::Mat& input) {
         cv::Mat result;
         cv::dft(padded, result, cv::DFT_COMPLEX_OUTPUT);
         return result;
-    } catch (const cv::Exception& e) {
-        std::cerr << "FFT2D error: " << e.what() << std::endl;
+    } catch (const cv::Exception&) {
         return cv::Mat();
     }
 }
@@ -125,8 +124,7 @@ cv::Mat ifft2d(const cv::Mat& input) {
         cv::Mat result;
         cv::dft(input, result, cv::DFT_INVERSE | cv::DFT_REAL_OUTPUT | cv::DFT_SCALE);
         return result;
-    } catch (const cv::Exception& e) {
-        std::cerr << "IFFT2D error: " << e.what() << std::endl;
+    } catch (const cv::Exception&) {
         return cv::Mat();
     }
 }

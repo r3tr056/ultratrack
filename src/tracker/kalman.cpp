@@ -2,6 +2,21 @@
 
 namespace ultratrack {
 
+Result<KalmanFilter> KalmanFilter::create(const Rect2f& initial_bbox) {
+    try {
+        return KalmanFilter(initial_bbox);
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR,
+                      std::string("failed to create Kalman filter: ") + e.what());
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR,
+                      std::string("failed to create Kalman filter: ") + e.what());
+    } catch (...) {
+        return Status(ErrorCode::INTERNAL_ERROR,
+                      "failed to create Kalman filter: unknown error");
+    }
+}
+
 KalmanFilter::KalmanFilter(const Rect2f& initial_bbox) {
     initMatrices();
 

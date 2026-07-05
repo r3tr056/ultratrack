@@ -11,7 +11,7 @@ namespace ultratrack {
 /// State vector: [center_x, center_y, width, height, v_center_x, v_center_y, v_width, v_height].
 class KalmanFilter {
 public:
-    explicit KalmanFilter(const Rect2f& initial_bbox);
+    static Result<KalmanFilter> create(const Rect2f& initial_bbox);
 
     /// Advance the state estimate by one time step.
     Status predict();
@@ -23,6 +23,8 @@ public:
     Result<Rect2f> stateBBox() const;
 
 private:
+    explicit KalmanFilter(const Rect2f& initial_bbox);
+
     void initMatrices();
 
     cv::Mat state_;          ///< 8x1 state vector.

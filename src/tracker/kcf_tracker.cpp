@@ -151,12 +151,12 @@ Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
 
         // Clamp the predicted bbox to the frame bounds.
         predicted_bbox.x = std::max(0.0f, std::min(predicted_bbox.x,
-                                    static_cast<float>(frame.cols - 1)));
+                                    static_cast<float>(frame.cols)));
         predicted_bbox.y = std::max(0.0f, std::min(predicted_bbox.y,
-                                    static_cast<float>(frame.rows - 1)));
-        predicted_bbox.width = std::max(1.0f, std::min(predicted_bbox.width,
+                                    static_cast<float>(frame.rows)));
+        predicted_bbox.width = std::max(0.0f, std::min(predicted_bbox.width,
                                        static_cast<float>(frame.cols) - predicted_bbox.x));
-        predicted_bbox.height = std::max(1.0f, std::min(predicted_bbox.height,
+        predicted_bbox.height = std::max(0.0f, std::min(predicted_bbox.height,
                                         static_cast<float>(frame.rows) - predicted_bbox.y));
 
         track.bbox = predicted_bbox;
@@ -188,7 +188,8 @@ Status KCFTracker::update(Track& track, const cv::Mat& frame, const Rect2f& dete
         }
 
         // Only commit the new bbox after the filter was created successfully.
-        track.bbox = detected_bbox;
+        // Store the clamped rectangle so the canonical bbox stays inside the frame.
+        track.bbox = Rect2f(safe);
 
         if (track.correlation_filter.empty()) {
             track.correlation_filter = new_filter.clone();
