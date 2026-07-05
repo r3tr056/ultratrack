@@ -154,3 +154,73 @@ All 28 tests pass. The new `test` build target also passes on the Visual Studio 
 ### Commits created
 
 - `ae712b0` – `build: address Task 1 review fixes (SIMD detection, runtime dirs, test target, build type)`
+
+## Fix Round 2
+
+Addressing the Important issues from the second Task 1 review.
+
+### Issues fixed
+
+1. **Hardcoded `Release/` output directory breaks single-config generators** (`src/CMakeLists.txt`)
+   - Removed the explicit `RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Release` property from `ultratrack_cli`, letting CMake place the executable in its default per-config location.
+   - Replaced the fixed-path `create_runtime_dirs` custom target with `add_custom_command(TARGET ultratrack_cli POST_BUILD ...)`.
+   - The command uses `$<TARGET_FILE_DIR:ultratrack_cli>` so `models/` and `data/` are created next to the executable for both multi-config (`build/Release/`) and single-config (`build/`) generators.
+   - The `data/cn_lookup.bin` copy is also performed via `copy_if_different` into `$<TARGET_FILE_DIR:ultratrack_cli>/data/cn_lookup.bin`, so the CLI always finds its runtime data relative to itself.
+
+2. **MSVC SSE4.2 fallback uses invalid `/arch:SSE2` on x64** (`src/CMakeLists.txt`)
+   - Kept the `check_cxx_compiler_flag("/arch:AVX2" ...)` detection.
+   - When AVX2 is unavailable on 64-bit MSVC (`CMAKE_SIZEOF_VOID_P EQUAL 8`), the code no longer tries `/arch:SSE2`. Instead it defines `__SSE4_2__` unconditionally because SSE4.2 is guaranteed on x64 MSVC targets.
+   - On 32-bit MSVC the original `/arch:SSE2` check is preserved as a fallback.
+
+3. **Static library transitive dependencies not exported** (`src/CMakeLists.txt`, `cmake/ultratrack-config.cmake.in`)
+   - Moved `spdlog::spdlog`, `nlohmann_json::nlohmann_json`, and `Threads::Threads` from `PRIVATE` to `PUBLIC` on the `ultratrack` static target so they propagate to consumers.
+   - Also made the optional `OnnxRuntime::OnnxRuntime` dependency `PUBLIC` when enabled, since a static archive cannot hide link-time requirements.
+   - `cmake/ultratrack-config.cmake.in` already contains matching `find_dependency` calls for OpenCV, Threads, spdlog, nlohmann_json, and conditional OnnxRuntime.
+   - Verified the installed `ultratrack-targets.cmake` now lists all these dependencies in `INTERFACE_LINK_LIBRARIES`.
+
+4. **`Test` target workaround is not portable** (`CMakeLists.txt`)
+   - Removed the custom `Test` target and its MSBuild case-insensitivity dependency.
+   - Kept `set(CMAKE_CTEST_ARGUMENTS --output-on-failure)` so the built-in `test` (Makefile/Ninja) and `RUN_TESTS` (Visual Studio/Xcode) targets behave correctly.
+   - The portable test command is `ctest --test-dir build --output-on-failure -C Release` for multi-config and `ctest --test-dir build --output-on-failure` for single-config.
+   - Moved the default `CMAKE_BUILD_TYPE` block before `project()` so single-config generators (Ninja/Make) reliably default to `Release`.
+
+### Test results
+
+#### Visual Studio default preset
+
+```bash
+cmake --preset=default
+cmake --build build --config Release --target ultratrack
+cmake --build build --config Release --target ultratrack_tests
+ctest --test-dir build --output-on-failure -C Release
+```
+
+Output:
+
+```text
+100% tests passed, 0 tests failed out of 28
+Total Test time (real) = 0.47 sec
+```
+
+Building `ultratrack_cli` created `build/src/Release/models/` and `build/src/Release/data/` next to the executable.
+
+#### Ninja single-config generator
+
+```bash
+cmake -B build_ninja -S . -G Ninja -DBUILD_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=./vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build build_ninja --target ultratrack_tests
+ctest --test-dir build_ninja --output-on-failure
+```
+
+Output:
+
+```text
+100% tests passed, 0 tests failed out of 28
+Total Test time (real) = 0.50 sec
+```
+
+Configuration summary reported `Build type: Release` and building `ultratrack_cli` created `build_ninja/src/models/` and `build_ninja/src/data/` next to the executable.
+
+### Commits created
+
+- `c6a5b0b` – `build: address Task 1 second review fixes (runtime dirs, MSVC SSE4.2, static deps, test target)`
