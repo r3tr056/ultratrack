@@ -13,6 +13,18 @@
         "BUILD_TESTS": "ON",
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "linux-ninja",
+      "hidden": false,
+      "description": "Linux build with Ninja and vcpkg",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "BUILD_TESTS": "ON",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ]
 }
