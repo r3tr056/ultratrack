@@ -26,6 +26,20 @@ TEST_CASE("Factory returns not implemented for unimplemented backends", "[detect
     REQUIRE(backend.error().code() == ErrorCode::NOT_IMPLEMENTED);
 }
 
+TEST_CASE("OpenCVDNNBackend rejects invalid input size", "[detector]") {
+    OpenCVDNNBackend::Config cfg{"nonexistent_model.onnx"};
+
+    cfg.input_size = cv::Size(0, 0);
+    auto backend = OpenCVDNNBackend::create(cfg);
+    REQUIRE(!backend.has_value());
+    REQUIRE(backend.error().code() == ErrorCode::INVALID_ARGUMENT);
+
+    cfg.input_size = cv::Size(-1, 640);
+    backend = OpenCVDNNBackend::create(cfg);
+    REQUIRE(!backend.has_value());
+    REQUIRE(backend.error().code() == ErrorCode::INVALID_ARGUMENT);
+}
+
 TEST_CASE("OpenCVDNNBackend detects empty frame", "[detector]") {
     const std::string model_path = "models/test.onnx";
     if (!std::filesystem::exists(model_path)) {
@@ -71,4 +85,16 @@ TEST_CASE("OpenCVDNNBackend runs inference when model is present", "[detector]")
         REQUIRE(d.confidence <= 1.0f);
         REQUIRE(d.class_id >= 0);
     }
+}
+
+TEST_CASE("OpenCVDNNBackend creates with CUDA flag enabled", "[detector]") {
+    const std::string model_path = "models/test.onnx";
+    if (!std::filesystem::exists(model_path)) {
+        SKIP("Model file not found: " << model_path);
+    }
+
+    OpenCVDNNBackend::Config cfg{model_path};
+    cfg.use_cuda = true;
+    auto backend = OpenCVDNNBackend::create(cfg);
+    REQUIRE(backend.has_value());
 }
