@@ -15,6 +15,8 @@ set(ULTRATRACK_SOURCES
     tracker/kcf_tracker.cpp
     tracker/simd_helpers.cpp
     tracker/kalman.cpp
+    tracking_engine/track_lifecycle.cpp
+    tracking_engine/track_manager.cpp
 )
 
 add_library(ultratrack STATIC ${ULTRATRACK_SOURCES})

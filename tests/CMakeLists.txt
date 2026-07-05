@@ -10,6 +10,7 @@ add_executable(ultratrack_tests
     detector/test_opencv_dnn_backend.cpp
     tracker/test_kcf_tracker.cpp
     tracker/test_kalman.cpp
+    tracking_engine/test_track_manager.cpp
 )
 
 target_link_libraries(ultratrack_tests PRIVATE ultratrack Catch2::Catch2WithMain)
