@@ -1,5 +1,4 @@
 #include <ultratrack/detector/opencv_dnn_backend.hpp>
-#include <spdlog/spdlog.h>
 
 namespace ultratrack {
 
@@ -7,14 +6,23 @@ Result<std::unique_ptr<IDetectorBackend>> OpenCVDNNBackend::create(const Config&
     if (cfg.model_path.empty()) {
         return Status(ErrorCode::MODEL_LOAD_FAILED, "model path is empty");
     }
+    if (cfg.input_size.width <= 0 || cfg.input_size.height <= 0) {
+        return Status(ErrorCode::INVALID_ARGUMENT,
+                      "input_size dimensions must be positive");
+    }
     try {
         auto net = cv::dnn::readNetFromONNX(cfg.model_path);
         if (net.empty()) {
             return Status(ErrorCode::MODEL_LOAD_FAILED, "failed to load ONNX model");
         }
 
-        net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
-        net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+        if (cfg.use_cuda) {
+            net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
+            net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
+        } else {
+            net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+            net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+        }
 
         return std::unique_ptr<IDetectorBackend>(new OpenCVDNNBackend(std::move(net), cfg));
     } catch (const std::exception& e) {
@@ -41,7 +49,13 @@ Result<std::vector<Detection>> OpenCVDNNBackend::detect(const Frame& frame) {
         }
 
         // Parse YOLO output [1, dims, anchors] -> first mat
-        const float* data = reinterpret_cast<float*>(outputs[0].data);
+        if (outputs[0].dims != 3 || outputs[0].size[0] != 1 ||
+            outputs[0].type() != CV_32F) {
+            return Status(ErrorCode::INFERENCE_FAILED,
+                          "unexpected network output shape: expected 3-D CV_32F tensor "
+                          "with batch size 1");
+        }
+        const float* data = outputs[0].ptr<float>();
         const int dims = outputs[0].size[1];
         const int rows = outputs[0].size[2];
         if (dims < 5) {

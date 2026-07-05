@@ -62,4 +62,13 @@ TEST_CASE("OpenCVDNNBackend runs inference when model is present", "[detector]")
 
     auto result = backend.value()->detect(frame);
     REQUIRE(result.has_value());
+
+    const auto& detections = result.value();
+    for (const auto& d : detections) {
+        REQUIRE(d.bbox.width > 0);
+        REQUIRE(d.bbox.height > 0);
+        REQUIRE(d.confidence >= 0.0f);
+        REQUIRE(d.confidence <= 1.0f);
+        REQUIRE(d.class_id >= 0);
+    }
 }

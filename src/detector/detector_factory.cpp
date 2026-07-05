@@ -11,8 +11,9 @@ Result<std::unique_ptr<IDetectorBackend>> create_detector_backend(
             return Status(ErrorCode::NOT_IMPLEMENTED, "ONNX Runtime backend not implemented");
         case DetectorBackend::TENSORRT:
             return Status(ErrorCode::NOT_IMPLEMENTED, "TensorRT backend not implemented");
+        default:
+            return Status(ErrorCode::NOT_IMPLEMENTED, "unknown detector backend");
     }
-    return Status(ErrorCode::NOT_IMPLEMENTED, "unknown detector backend");
 }
 
 } // namespace ultratrack
