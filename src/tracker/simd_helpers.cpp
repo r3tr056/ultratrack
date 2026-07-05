@@ -1,5 +1,6 @@
 #include "simd_helpers.hpp"
 
+#include <cmath>
 #include <iostream>
 
 namespace ultratrack {

@@ -9,19 +9,27 @@ Result<std::unique_ptr<KCFTracker>> KCFTracker::create(const Config& cfg) {
     if (cfg.template_size.width <= 0 || cfg.template_size.height <= 0) {
         return Status(ErrorCode::INVALID_ARGUMENT, "template size must be positive");
     }
-    return std::unique_ptr<KCFTracker>(new KCFTracker(cfg));
+    try {
+        return std::unique_ptr<KCFTracker>(new KCFTracker(cfg));
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::FEATURE_EXTRACTION_FAILED,
+                      std::string("failed to create KCF tracker: ") + e.what());
+    }
 }
 
 KCFTracker::KCFTracker(const Config& cfg) : cfg_(cfg) {
     feature_extractor_ = std::make_unique<MultiFeatureExtractor>(cfg.feature_mode, cfg.feature_config);
 
-    cv::Mat hann_1d = createHannWindow(cfg.template_size.width);
-    cv::mulTransposed(hann_1d, hann_window_, true);
+    cv::Mat hann_x = createHannWindow(cfg.template_size.width);
+    cv::Mat hann_y = createHannWindow(cfg.template_size.height);
+    hann_window_ = hann_y.t() * hann_x;
     hann_window_.convertTo(hann_window_, CV_32FC1);
 
     cv::Mat gx = cv::getGaussianKernel(cfg.template_size.width, cfg.sigma, CV_32F);
     cv::Mat gy = cv::getGaussianKernel(cfg.template_size.height, cfg.sigma, CV_32F);
     gaussian_target_ = gy * gx.t();
+
+    gaussian_target_fft_ = internal::fft2d(gaussian_target_);
 }
 
 cv::Mat KCFTracker::createHannWindow(int size) {
@@ -106,14 +114,14 @@ Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
     cv::Point max_loc;
     cv::minMaxLoc(response, &min_val, &max_val, &min_loc, &max_loc);
 
-    const float center_x = static_cast<float>(response.cols) * 0.5f;
-    const float center_y = static_cast<float>(response.rows) * 0.5f;
+    const float center_x = static_cast<float>(cfg_.template_size.width) * 0.5f;
+    const float center_y = static_cast<float>(cfg_.template_size.height) * 0.5f;
     const float dx_map = static_cast<float>(max_loc.x) - center_x;
     const float dy_map = static_cast<float>(max_loc.y) - center_y;
 
     // Map the displacement from response space back to image space.
-    const float scale_x = static_cast<float>(safe_search.width) / static_cast<float>(response.cols);
-    const float scale_y = static_cast<float>(safe_search.height) / static_cast<float>(response.rows);
+    const float scale_x = static_cast<float>(safe_search.width) / static_cast<float>(cfg_.template_size.width);
+    const float scale_y = static_cast<float>(safe_search.height) / static_cast<float>(cfg_.template_size.height);
 
     const float dx_frame = dx_map * scale_x;
     const float dy_frame = dy_map * scale_y;
@@ -129,12 +137,12 @@ Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
 }
 
 Status KCFTracker::update(Track& track, const cv::Mat& frame, const Rect2f& detected_bbox) {
-    track.bbox = detected_bbox;
-
     cv::Rect safe = cv::Rect(detected_bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
     if (safe.area() <= 0) {
         return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid update bbox");
     }
+
+    track.bbox = detected_bbox;
 
     cv::Mat patch = frame(safe);
     cv::Mat new_filter = createFilter(patch);
@@ -176,26 +184,24 @@ cv::Mat KCFTracker::createFilter(const cv::Mat& patch) {
                                static_cast<int>(windowed_patch.total()));
 
     cv::Mat patch_fft = internal::fft2d(windowed_patch);
-    cv::Mat target_fft = internal::fft2d(gaussian_target_);
 
-    if (patch_fft.empty() || target_fft.empty()) {
+    if (patch_fft.empty() || gaussian_target_fft_.empty()) {
         return cv::Mat();
     }
 
     if (patch_fft.type() != CV_32FC2) patch_fft.convertTo(patch_fft, CV_32FC2);
-    if (target_fft.type() != CV_32FC2) target_fft.convertTo(target_fft, CV_32FC2);
 
-    cv::Mat numerator(target_fft.size(), target_fft.type());
-    internal::simd_mul_spectrums(target_fft.ptr<float>(), patch_fft.ptr<float>(),
+    cv::Mat numerator(gaussian_target_fft_.size(), gaussian_target_fft_.type());
+    internal::simd_mul_spectrums(gaussian_target_fft_.ptr<float>(), patch_fft.ptr<float>(),
                                  numerator.ptr<float>(),
-                                 static_cast<int>(target_fft.total()), true);
+                                 static_cast<int>(gaussian_target_fft_.total()), true);
 
     cv::Mat denominator(patch_fft.size(), patch_fft.type());
     internal::simd_mul_spectrums(patch_fft.ptr<float>(), patch_fft.ptr<float>(),
                                  denominator.ptr<float>(),
                                  static_cast<int>(patch_fft.total()), true);
 
-    cv::add(denominator, cv::Scalar::all(cfg_.lambda), denominator);
+    cv::add(denominator, cv::Scalar(cfg_.lambda, 0.0f), denominator);
 
     cv::Mat filter(numerator.size(), numerator.type());
     internal::simd_div_spectrums(numerator.ptr<float>(), denominator.ptr<float>(),

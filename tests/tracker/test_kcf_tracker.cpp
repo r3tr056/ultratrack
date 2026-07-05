@@ -59,6 +59,47 @@ TEST_CASE("KCFTracker predict fails without initialization", "[tracker]") {
     REQUIRE(pred.error().code() == ErrorCode::TRACKING_LOST);
 }
 
+TEST_CASE("KCFTracker supports non-square template size", "[tracker]") {
+    KCFTracker::Config cfg;
+    cfg.template_size = cv::Size(96, 64);
+    auto tracker = KCFTracker::create(cfg);
+    REQUIRE(tracker.has_value());
+
+    Track track;
+    track.bbox = Rect2f(100, 100, 40, 40);
+    cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    cv::rectangle(frame, cv::Point(100, 100), cv::Point(140, 140), cv::Scalar(255, 255, 255), -1);
+
+    REQUIRE(tracker.value()->init(track, frame).ok());
+    REQUIRE(!track.correlation_filter.empty());
+
+    auto pred = tracker.value()->predict(track, frame);
+    REQUIRE(pred.has_value());
+    REQUIRE(pred.value().width > 0);
+}
+
+TEST_CASE("KCFTracker update rejects invalid bbox", "[tracker]") {
+    KCFTracker::Config cfg;
+    cfg.template_size = cv::Size(64, 64);
+    auto tracker = KCFTracker::create(cfg);
+    REQUIRE(tracker.has_value());
+
+    Track track;
+    track.bbox = Rect2f(100, 100, 40, 40);
+    cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    cv::rectangle(frame, cv::Point(100, 100), cv::Point(140, 140), cv::Scalar(255, 255, 255), -1);
+
+    REQUIRE(tracker.value()->init(track, frame).ok());
+    Rect2f old_bbox = track.bbox;
+
+    Rect2f invalid_bbox(-100, -100, 40, 40);
+    auto status = tracker.value()->update(track, frame, invalid_bbox);
+    REQUIRE(!status.ok());
+    REQUIRE(status.code() == ErrorCode::INVALID_PATCH_SIZE);
+    REQUIRE(track.bbox.x == old_bbox.x);
+    REQUIRE(track.bbox.y == old_bbox.y);
+}
+
 TEST_CASE("KCFTracker update refreshes the filter", "[tracker]") {
     KCFTracker::Config cfg;
     cfg.template_size = cv::Size(64, 64);

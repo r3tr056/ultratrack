@@ -36,6 +36,7 @@ private:
     std::unique_ptr<MultiFeatureExtractor> feature_extractor_;
     cv::Mat hann_window_;
     cv::Mat gaussian_target_;
+    cv::Mat gaussian_target_fft_;
 };
 
 } // namespace ultratrack
