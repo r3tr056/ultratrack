@@ -8,7 +8,9 @@ TEST_CASE("KalmanFilter initializes from bbox", "[tracker]") {
     Rect2f bbox(100.0f, 100.0f, 40.0f, 60.0f);
     KalmanFilter kf(bbox);
 
-    Rect2f state = kf.stateBBox();
+    auto result = kf.stateBBox();
+    REQUIRE(result.has_value());
+    Rect2f state = result.value();
     REQUIRE(state.x == Catch::Approx(bbox.x));
     REQUIRE(state.y == Catch::Approx(bbox.y));
     REQUIRE(state.width == Catch::Approx(bbox.width));
@@ -21,10 +23,12 @@ TEST_CASE("KalmanFilter predict moves the state", "[tracker]") {
 
     // Give the filter a velocity by updating with a shifted measurement.
     Rect2f m1(110.0f, 105.0f, 40.0f, 40.0f);
-    kf.update(m1);
-    kf.predict();
+    REQUIRE(kf.update(m1).ok());
+    REQUIRE(kf.predict().ok());
 
-    Rect2f predicted = kf.stateBBox();
+    auto result = kf.stateBBox();
+    REQUIRE(result.has_value());
+    Rect2f predicted = result.value();
     REQUIRE(predicted.x > bbox.x);
     REQUIRE(predicted.y > bbox.y);
 }
@@ -33,11 +37,13 @@ TEST_CASE("KalmanFilter update corrects the state", "[tracker]") {
     Rect2f bbox(100.0f, 100.0f, 40.0f, 40.0f);
     KalmanFilter kf(bbox);
 
-    kf.predict();
+    REQUIRE(kf.predict().ok());
     Rect2f measurement(120.0f, 110.0f, 42.0f, 38.0f);
-    kf.update(measurement);
+    REQUIRE(kf.update(measurement).ok());
 
-    Rect2f corrected = kf.stateBBox();
+    auto result = kf.stateBBox();
+    REQUIRE(result.has_value());
+    Rect2f corrected = result.value();
     REQUIRE(corrected.x > bbox.x);
     REQUIRE(corrected.x < measurement.x);
     REQUIRE(corrected.width > bbox.width);
@@ -48,7 +54,9 @@ TEST_CASE("KalmanFilter handles zero-size bbox", "[tracker]") {
     Rect2f bbox(50.0f, 50.0f, 0.0f, 0.0f);
     KalmanFilter kf(bbox);
 
-    Rect2f state = kf.stateBBox();
+    auto result = kf.stateBBox();
+    REQUIRE(result.has_value());
+    Rect2f state = result.value();
     REQUIRE(state.x == Catch::Approx(bbox.x));
     REQUIRE(state.y == Catch::Approx(bbox.y));
     REQUIRE(state.width == Catch::Approx(0.0f));

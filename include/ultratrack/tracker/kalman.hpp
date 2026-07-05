@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ultratrack/core/result.hpp>
 #include <ultratrack/core/types.hpp>
 #include <opencv2/core.hpp>
 
@@ -13,13 +14,13 @@ public:
     explicit KalmanFilter(const Rect2f& initial_bbox);
 
     /// Advance the state estimate by one time step.
-    void predict();
+    Status predict();
 
     /// Fuse a new measurement into the state estimate.
-    void update(const Rect2f& measured_bbox);
+    Status update(const Rect2f& measured_bbox);
 
     /// Return the bounding box implied by the current state.
-    Rect2f stateBBox() const;
+    Result<Rect2f> stateBBox() const;
 
 private:
     void initMatrices();

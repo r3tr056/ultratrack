@@ -30,7 +30,6 @@ private:
     explicit KCFTracker(const Config& cfg);
 
     cv::Mat createFilter(const cv::Mat& patch);
-    cv::Mat createHannWindow(int size);
 
     Config cfg_;
     std::unique_ptr<MultiFeatureExtractor> feature_extractor_;

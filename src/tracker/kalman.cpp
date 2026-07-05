@@ -41,35 +41,66 @@ void KalmanFilter::initMatrices() {
     measurement_noise_ = cv::Mat::eye(4, 4, CV_32F) * 1.0f;
 }
 
-void KalmanFilter::predict() {
-    state_ = transition_ * state_;
-    cv::Mat temp = transition_ * covariance_;
-    covariance_ = temp * transition_.t() + process_noise_;
+Status KalmanFilter::predict() {
+    try {
+        state_ = transition_ * state_;
+        cv::Mat temp = transition_ * covariance_;
+        covariance_ = temp * transition_.t() + process_noise_;
+        return Status();
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR, std::string("Kalman predict failed: ") + e.what());
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR, std::string("Kalman predict failed: ") + e.what());
+    } catch (...) {
+        return Status(ErrorCode::INTERNAL_ERROR, "Kalman predict failed: unknown error");
+    }
 }
 
-void KalmanFilter::update(const Rect2f& measured_bbox) {
-    cv::Mat measurement = (cv::Mat_<float>(4, 1) <<
-                           measured_bbox.x + measured_bbox.width * 0.5f,
-                           measured_bbox.y + measured_bbox.height * 0.5f,
-                           measured_bbox.width,
-                           measured_bbox.height);
+Status KalmanFilter::update(const Rect2f& measured_bbox) {
+    try {
+        cv::Mat measurement = (cv::Mat_<float>(4, 1) <<
+                               measured_bbox.x + measured_bbox.width * 0.5f,
+                               measured_bbox.y + measured_bbox.height * 0.5f,
+                               measured_bbox.width,
+                               measured_bbox.height);
 
-    cv::Mat innovation = measurement - measurement_ * state_;
-    cv::Mat temp = measurement_ * covariance_;
-    cv::Mat innovation_cov = temp * measurement_.t() + measurement_noise_;
-    cv::Mat kalman_gain = covariance_ * measurement_.t() * innovation_cov.inv();
+        cv::Mat innovation = measurement - measurement_ * state_;
+        cv::Mat temp = measurement_ * covariance_;
+        cv::Mat innovation_cov = temp * measurement_.t() + measurement_noise_;
+        cv::Mat innovation_cov_inv = innovation_cov.inv(cv::DECOMP_SVD);
+        if (innovation_cov_inv.empty()) {
+            return Status(ErrorCode::INTERNAL_ERROR, "Kalman update failed: innovation covariance is singular");
+        }
 
-    state_ = state_ + kalman_gain * innovation;
-    cv::Mat identity = cv::Mat::eye(8, 8, CV_32F);
-    covariance_ = (identity - kalman_gain * measurement_) * covariance_;
+        cv::Mat kalman_gain = covariance_ * measurement_.t() * innovation_cov_inv;
+
+        state_ = state_ + kalman_gain * innovation;
+        cv::Mat identity = cv::Mat::eye(8, 8, CV_32F);
+        covariance_ = (identity - kalman_gain * measurement_) * covariance_;
+        return Status();
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR, std::string("Kalman update failed: ") + e.what());
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR, std::string("Kalman update failed: ") + e.what());
+    } catch (...) {
+        return Status(ErrorCode::INTERNAL_ERROR, "Kalman update failed: unknown error");
+    }
 }
 
-Rect2f KalmanFilter::stateBBox() const {
-    const float cx = state_.at<float>(0);
-    const float cy = state_.at<float>(1);
-    const float w = state_.at<float>(2);
-    const float h = state_.at<float>(3);
-    return Rect2f(cx - w * 0.5f, cy - h * 0.5f, w, h);
+Result<Rect2f> KalmanFilter::stateBBox() const {
+    try {
+        const float cx = state_.at<float>(0);
+        const float cy = state_.at<float>(1);
+        const float w = state_.at<float>(2);
+        const float h = state_.at<float>(3);
+        return Rect2f(cx - w * 0.5f, cy - h * 0.5f, w, h);
+    } catch (const cv::Exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR, std::string("Kalman stateBBox failed: ") + e.what());
+    } catch (const std::exception& e) {
+        return Status(ErrorCode::INTERNAL_ERROR, std::string("Kalman stateBBox failed: ") + e.what());
+    } catch (...) {
+        return Status(ErrorCode::INTERNAL_ERROR, "Kalman stateBBox failed: unknown error");
+    }
 }
 
 } // namespace ultratrack

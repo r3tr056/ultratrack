@@ -3,6 +3,8 @@
 
 #include <opencv2/imgproc.hpp>
 
+#include <algorithm>
+
 namespace ultratrack {
 
 Result<std::unique_ptr<KCFTracker>> KCFTracker::create(const Config& cfg) {
@@ -26,8 +28,8 @@ Result<std::unique_ptr<KCFTracker>> KCFTracker::create(const Config& cfg) {
 KCFTracker::KCFTracker(const Config& cfg) : cfg_(cfg) {
     feature_extractor_ = std::make_unique<MultiFeatureExtractor>(cfg.feature_mode, cfg.feature_config);
 
-    cv::Mat hann_x = createHannWindow(cfg.template_size.width);
-    cv::Mat hann_y = createHannWindow(cfg.template_size.height);
+    cv::Mat hann_x = internal::create_hann_window(cfg.template_size.width);
+    cv::Mat hann_y = internal::create_hann_window(cfg.template_size.height);
     hann_window_ = hann_y.t() * hann_x;
     hann_window_.convertTo(hann_window_, CV_32FC1);
 
@@ -36,10 +38,6 @@ KCFTracker::KCFTracker(const Config& cfg) : cfg_(cfg) {
     gaussian_target_ = gy * gx.t();
 
     gaussian_target_fft_ = internal::fft2d(gaussian_target_);
-}
-
-cv::Mat KCFTracker::createHannWindow(int size) {
-    return internal::create_hann_window(size);
 }
 
 Status KCFTracker::init(Track& track, const cv::Mat& frame) {
@@ -129,14 +127,15 @@ Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
         cv::Point max_loc;
         cv::minMaxLoc(response, &min_val, &max_val, &min_loc, &max_loc);
 
-        const float center_x = static_cast<float>(cfg_.template_size.width) * 0.5f;
-        const float center_y = static_cast<float>(cfg_.template_size.height) * 0.5f;
+        // The response map dimensions are FFT-padded, not necessarily template_size.
+        const float center_x = static_cast<float>(response.cols) * 0.5f;
+        const float center_y = static_cast<float>(response.rows) * 0.5f;
         const float dx_map = static_cast<float>(max_loc.x) - center_x;
         const float dy_map = static_cast<float>(max_loc.y) - center_y;
 
         // Map the displacement from response space back to image space.
-        const float scale_x = static_cast<float>(safe_search.width) / static_cast<float>(cfg_.template_size.width);
-        const float scale_y = static_cast<float>(safe_search.height) / static_cast<float>(cfg_.template_size.height);
+        const float scale_x = static_cast<float>(safe_search.width) / static_cast<float>(response.cols);
+        const float scale_y = static_cast<float>(safe_search.height) / static_cast<float>(response.rows);
 
         const float dx_frame = dx_map * scale_x;
         const float dy_frame = dy_map * scale_y;
@@ -145,9 +144,22 @@ Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
                                      track.bbox.y + track.bbox.height * 0.5f);
         const cv::Point2f new_center(old_center.x + dx_frame, old_center.y + dy_frame);
 
-        track.bbox.x = new_center.x - track.bbox.width * 0.5f;
-        track.bbox.y = new_center.y - track.bbox.height * 0.5f;
+        Rect2f predicted_bbox(new_center.x - track.bbox.width * 0.5f,
+                              new_center.y - track.bbox.height * 0.5f,
+                              track.bbox.width,
+                              track.bbox.height);
 
+        // Clamp the predicted bbox to the frame bounds.
+        predicted_bbox.x = std::max(0.0f, std::min(predicted_bbox.x,
+                                    static_cast<float>(frame.cols - 1)));
+        predicted_bbox.y = std::max(0.0f, std::min(predicted_bbox.y,
+                                    static_cast<float>(frame.rows - 1)));
+        predicted_bbox.width = std::max(1.0f, std::min(predicted_bbox.width,
+                                       static_cast<float>(frame.cols) - predicted_bbox.x));
+        predicted_bbox.height = std::max(1.0f, std::min(predicted_bbox.height,
+                                        static_cast<float>(frame.rows) - predicted_bbox.y));
+
+        track.bbox = predicted_bbox;
         return track.bbox;
     } catch (const cv::Exception& e) {
         return Status(ErrorCode::TRACKING_LOST, e.what());
@@ -169,13 +181,14 @@ Status KCFTracker::update(Track& track, const cv::Mat& frame, const Rect2f& dete
             return Status(ErrorCode::INVALID_PATCH_SIZE, "invalid update bbox");
         }
 
-        track.bbox = detected_bbox;
-
         cv::Mat patch = frame(safe);
         cv::Mat new_filter = createFilter(patch);
         if (new_filter.empty()) {
             return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "filter update failed");
         }
+
+        // Only commit the new bbox after the filter was created successfully.
+        track.bbox = detected_bbox;
 
         if (track.correlation_filter.empty()) {
             track.correlation_filter = new_filter.clone();
