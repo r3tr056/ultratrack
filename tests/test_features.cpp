@@ -3,144 +3,102 @@
 #include "features/hog_feature.hpp"
 #include "features/gray_feature.hpp"
 #include "features/cn_feature.hpp"
-#include <cassert>
+#include <catch2/catch_test_macros.hpp>
 #include <iostream>
 
 using namespace ultratrack;
 
-void test_hog_dimensions() {
+TEST_CASE("HOG dimensions and name", "[features]") {
     HOGFeature hog;
-    assert(hog.dimensions() == 31);
-    assert(hog.name() == "HOG");
-    
-    std::cout << "  PASS: test_hog_dimensions\n";
+    REQUIRE(hog.dimensions() == 31);
+    REQUIRE(hog.name() == "HOG");
 }
 
-void test_hog_extraction() {
+TEST_CASE("HOG extraction", "[features]") {
     HOGFeature hog;
-    
-    // Create test patch
+
     cv::Mat patch = cv::Mat::zeros(64, 64, CV_8UC3);
     cv::rectangle(patch, cv::Rect(16, 16, 32, 32), cv::Scalar(255, 255, 255), -1);
-    
+
     cv::Mat features = hog.extract(patch);
-    
-    assert(!features.empty());
-    assert(features.channels() == 31);
-    
-    std::cout << "  PASS: test_hog_extraction\n";
+
+    REQUIRE(!features.empty());
+    REQUIRE(features.channels() == 31);
 }
 
-void test_gray_dimensions() {
+TEST_CASE("Gray dimensions and name", "[features]") {
     GrayFeature gray;
-    assert(gray.dimensions() == 1);
-    assert(gray.name() == "Gray");
-    
-    std::cout << "  PASS: test_gray_dimensions\n";
+    REQUIRE(gray.dimensions() == 1);
+    REQUIRE(gray.name() == "Gray");
 }
 
-void test_gray_extraction() {
+TEST_CASE("Gray extraction", "[features]") {
     GrayFeature gray;
-    
+
     cv::Mat patch = cv::Mat::ones(64, 64, CV_8UC3) * 128;
     cv::Mat features = gray.extract(patch);
-    
-    assert(!features.empty());
-    assert(features.channels() == 1);
-    assert(features.type() == CV_32FC1);
-    
-    std::cout << "  PASS: test_gray_extraction\n";
+
+    REQUIRE(!features.empty());
+    REQUIRE(features.channels() == 1);
+    REQUIRE(features.type() == CV_32FC1);
 }
 
-void test_cn_dimensions() {
+TEST_CASE("CN dimensions and name", "[features]") {
     CNFeature cn;
-    assert(cn.dimensions() == 10);
-    assert(cn.name() == "ColorNames");
-    
-    std::cout << "  PASS: test_cn_dimensions\n";
+    REQUIRE(cn.dimensions() == 10);
+    REQUIRE(cn.name() == "ColorNames");
 }
 
-void test_cn_extraction() {
+TEST_CASE("CN extraction", "[features]") {
     CNFeature cn;
-    
+
     // Create a red patch
     cv::Mat patch = cv::Mat(64, 64, CV_8UC3, cv::Scalar(0, 0, 255));  // BGR red
     cv::Mat features = cn.extract(patch);
-    
-    assert(!features.empty());
-    assert(features.channels() == 10);
-    
-    std::cout << "  PASS: test_cn_extraction\n";
+
+    REQUIRE(!features.empty());
+    REQUIRE(features.channels() == 10);
 }
 
-void test_multi_feature_fast_mode() {
+TEST_CASE("Multi-feature extractor FAST mode", "[features]") {
     MultiFeatureExtractor ext(TrackingMode::FAST);
-    
-    assert(ext.total_dimensions() == 31);  // HOG only
-    assert(ext.get_mode() == TrackingMode::FAST);
-    
-    std::cout << "  PASS: test_multi_feature_fast_mode\n";
+
+    REQUIRE(ext.total_dimensions() == 31);  // HOG only
+    REQUIRE(ext.get_mode() == TrackingMode::FAST);
 }
 
-void test_multi_feature_balanced_mode() {
+TEST_CASE("Multi-feature extractor BALANCED mode", "[features]") {
     MultiFeatureExtractor ext(TrackingMode::BALANCED);
-    
-    assert(ext.total_dimensions() == 32);  // HOG + Gray
-    assert(ext.get_mode() == TrackingMode::BALANCED);
-    
-    std::cout << "  PASS: test_multi_feature_balanced_mode\n";
+
+    REQUIRE(ext.total_dimensions() == 32);  // HOG + Gray
+    REQUIRE(ext.get_mode() == TrackingMode::BALANCED);
 }
 
-void test_multi_feature_accurate_mode() {
+TEST_CASE("Multi-feature extractor ACCURATE mode", "[features]") {
     MultiFeatureExtractor ext(TrackingMode::ACCURATE);
-    
-    assert(ext.total_dimensions() == 42);  // HOG + Gray + CN
-    assert(ext.get_mode() == TrackingMode::ACCURATE);
-    
-    std::cout << "  PASS: test_multi_feature_accurate_mode\n";
+
+    REQUIRE(ext.total_dimensions() == 42);  // HOG + Gray + CN
+    REQUIRE(ext.get_mode() == TrackingMode::ACCURATE);
 }
 
-void test_mode_switching() {
+TEST_CASE("Multi-feature extractor mode switching", "[features]") {
     MultiFeatureExtractor ext(TrackingMode::FAST);
-    assert(ext.total_dimensions() == 31);
-    
+    REQUIRE(ext.total_dimensions() == 31);
+
     ext.set_mode(TrackingMode::ACCURATE);
-    assert(ext.total_dimensions() == 42);
-    
+    REQUIRE(ext.total_dimensions() == 42);
+
     ext.set_mode(TrackingMode::BALANCED);
-    assert(ext.total_dimensions() == 32);
-    
-    std::cout << "  PASS: test_mode_switching\n";
+    REQUIRE(ext.total_dimensions() == 32);
 }
 
-void test_multi_feature_extraction() {
+TEST_CASE("Multi-feature extraction", "[features]") {
     MultiFeatureExtractor ext(TrackingMode::ACCURATE);
-    
+
     cv::Mat patch = cv::Mat::zeros(64, 64, CV_8UC3);
     cv::rectangle(patch, cv::Rect(16, 16, 32, 32), cv::Scalar(0, 0, 255), -1);
-    
-    cv::Mat features = ext.extract(patch);
-    
-    assert(!features.empty());
-    
-    std::cout << "  PASS: test_multi_feature_extraction\n";
-}
 
-int main() {
-    std::cout << "Running feature extraction tests...\n";
-    
-    test_hog_dimensions();
-    test_hog_extraction();
-    test_gray_dimensions();
-    test_gray_extraction();
-    test_cn_dimensions();
-    test_cn_extraction();
-    test_multi_feature_fast_mode();
-    test_multi_feature_balanced_mode();
-    test_multi_feature_accurate_mode();
-    test_mode_switching();
-    test_multi_feature_extraction();
-    
-    std::cout << "All feature extraction tests passed!\n";
-    return 0;
+    cv::Mat features = ext.extract(patch);
+
+    REQUIRE(!features.empty());
 }
