@@ -33,6 +33,7 @@ Status TrackManager::update(const std::vector<Detection>& detections, const cv::
         DataAssociation association(assoc_cfg);
         auto assoc_result = association.associate(tracks_, detections);
 
+        std::vector<bool> track_matched(tracks_.size(), false);
         std::vector<bool> det_matched(detections.size(), false);
         TrackLifecycle life(cfg_.lifecycle);
 
@@ -43,19 +44,13 @@ Status TrackManager::update(const std::vector<Detection>& detections, const cv::
             tracks_[i].bbox = detections[j].bbox;
             tracks_[i].confidence = detections[j].confidence;
             kcf_->update(tracks_[i], frame, detections[j].bbox);
+            track_matched[i] = true;
             det_matched[j] = true;
         }
 
         // Mark missed tracks
         for (size_t i = 0; i < tracks_.size(); ++i) {
-            bool matched = false;
-            for (const auto& m : assoc_result.matches) {
-                if (m.first == i) {
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
+            if (!track_matched[i]) {
                 life.onMissed(tracks_[i]);
             }
         }
@@ -101,7 +96,11 @@ void TrackManager::createNewTracks(const std::vector<Detection>& unmatched, cons
         track.age = 1;
         track.hits = 1;
         track.time_since_update = 0;
-        kcf_->init(track, frame);
+        auto status = kcf_->init(track, frame);
+        if (!status.ok()) {
+            // If the KCF tracker cannot initialize on this patch, do not create a track.
+            continue;
+        }
         tracks_.push_back(track);
     }
 }

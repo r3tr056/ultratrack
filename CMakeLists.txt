@@ -22,6 +22,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # -----------------------------------------------------------------------------
 option(BUILD_TESTS "Build unit tests" ON)
 option(ULTRATRACK_WITH_ONNXRUNTIME "Enable ONNX Runtime backend" OFF)
+option(ULTRATRACK_WITH_CUDA "Enable CUDA code paths in simd_helpers" OFF)
 
 # -----------------------------------------------------------------------------
 # Dependencies
@@ -33,6 +34,11 @@ find_package(nlohmann_json REQUIRED)
 
 if(ULTRATRACK_WITH_ONNXRUNTIME)
     find_package(OnnxRuntime REQUIRED)
+endif()
+
+if(ULTRATRACK_WITH_CUDA)
+    find_package(CUDA REQUIRED)
+    enable_language(CUDA)
 endif()
 
 # -----------------------------------------------------------------------------

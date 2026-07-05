@@ -31,6 +31,17 @@ private:
 
     cv::Mat createFilter(const cv::Mat& patch);
 
+    /// Extract per-channel features from a patch resized to template_size.
+    /// Falls back to a single grayscale channel if feature extraction fails.
+    std::vector<cv::Mat> extractFeatureChannels(const cv::Mat& patch) const;
+
+    /// Merge per-channel complex (CV_32FC2) filters into one multi-channel
+    /// CV_32FC(2*C) Mat stored in Track::correlation_filter.
+    static cv::Mat mergeComplexFilters(const std::vector<cv::Mat>& filters);
+
+    /// Split a multi-channel CV_32FC(2*C) filter into per-channel CV_32FC2 Mats.
+    static std::vector<cv::Mat> splitComplexFilters(const cv::Mat& filter);
+
     Config cfg_;
     std::unique_ptr<MultiFeatureExtractor> feature_extractor_;
     cv::Mat hann_window_;

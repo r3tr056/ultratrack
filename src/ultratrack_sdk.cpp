@@ -1,9 +1,15 @@
 #include <ultratrack/ultratrack_sdk.hpp>
 #include <spdlog/spdlog.h>
+#include <atomic>
+#include <mutex>
 
 namespace ultratrack {
 
 namespace {
+    std::mutex& sdk_state_mutex() {
+        static std::mutex m;
+        return m;
+    }
     bool g_initialized = false;
     bool g_licensed = false;
 
@@ -22,6 +28,7 @@ namespace {
 
 Status UltraTrackerSDK::initialize(const SDKConfig& cfg) {
     try {
+        std::lock_guard<std::mutex> lock(sdk_state_mutex());
         if (g_initialized) {
             return Status(ErrorCode::ALREADY_INITIALIZED, "SDK already initialized");
         }
@@ -37,10 +44,14 @@ Status UltraTrackerSDK::initialize(const SDKConfig& cfg) {
 }
 
 void UltraTrackerSDK::shutdown() {
+    std::lock_guard<std::mutex> lock(sdk_state_mutex());
     g_initialized = false;
     g_licensed = false;
 }
 
-bool UltraTrackerSDK::is_licensed() { return g_initialized && g_licensed; }
+bool UltraTrackerSDK::is_licensed() {
+    std::lock_guard<std::mutex> lock(sdk_state_mutex());
+    return g_initialized && g_licensed;
+}
 
 } // namespace ultratrack

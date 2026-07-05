@@ -20,6 +20,9 @@ Result<MOTSequence> BenchmarkHarness::loadSequence(const std::string& image_dir)
             return Status(ErrorCode::INVALID_ARGUMENT, "no images found");
         }
 
+        // cv::glob order is filesystem-dependent; enforce lexicographic frame order.
+        std::sort(files.begin(), files.end());
+
         MOTSequence seq;
         for (const auto& f : files) {
             cv::Mat img = cv::imread(f, cv::IMREAD_UNCHANGED);

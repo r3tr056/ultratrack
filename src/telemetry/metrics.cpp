@@ -1,4 +1,5 @@
 #include <ultratrack/telemetry/metrics.hpp>
+#include <spdlog/spdlog.h>
 #include <algorithm>
 #include <numeric>
 
@@ -37,8 +38,11 @@ StageTimer::~StageTimer() {
         auto end = std::chrono::high_resolution_clock::now();
         double ms = std::chrono::duration<double, std::milli>(end - start_).count();
         collector_.record(stage_, ms);
+    } catch (const std::exception& e) {
+        // Destructors must not throw. Log and swallow any exception from recording.
+        spdlog::error("StageTimer::~StageTimer failed for stage '{}': {}", stage_, e.what());
     } catch (...) {
-        // Destructors must not throw. Swallow any exception from recording.
+        spdlog::error("StageTimer::~StageTimer failed for stage '{}': unknown error", stage_);
     }
 }
 

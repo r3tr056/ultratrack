@@ -113,6 +113,21 @@ TEST_CASE("TrackManager handles empty detection list", "[tracking_engine]") {
     REQUIRE(tm.value()->activeTracks().empty());
 }
 
+TEST_CASE("TrackManager skips tracks when KCF init fails", "[tracking_engine]") {
+    TrackManager::Config cfg;
+    auto tm = TrackManager::create(cfg);
+    REQUIRE(tm.has_value());
+
+    // Empty frame causes KCFTracker::init to fail, so no track should be created.
+    cv::Mat empty_frame;
+    std::vector<Detection> dets;
+    dets.push_back({0, Rect2f(100, 100, 40, 40), 0.9f, 0, {}});
+
+    auto status = tm.value()->update(dets, empty_frame);
+    REQUIRE(status.ok());
+    REQUIRE(tm.value()->activeTracks().empty());
+}
+
 TEST_CASE("TrackLifecycle confirms tentative track", "[tracking_engine]") {
     LifecycleConfig cfg;
     cfg.confirmation_threshold = 3;

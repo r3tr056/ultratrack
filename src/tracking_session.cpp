@@ -31,7 +31,7 @@ Result<std::unique_ptr<TrackingSession>> TrackingSession::create(const TrackerSe
         dcfg.model_path = settings.detector_model_path;
         dcfg.confidence_threshold = settings.confidence_threshold;
         dcfg.nms_threshold = settings.nms_threshold;
-        auto det = OpenCVDNNBackend::create(dcfg);
+        auto det = create_detector_backend(settings.backend, dcfg);
         if (!det.has_value()) {
             return det.error();
         }

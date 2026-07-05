@@ -4,6 +4,8 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <spdlog/spdlog.h>
+#include <atomic>
+#include <thread>
 #include <vector>
 
 using namespace ultratrack;
@@ -161,4 +163,65 @@ TEST_CASE("TrackingSession reset clears tracks and primary target", "[public_api
     auto out = session.value()->processFrame(make_test_frame());
     REQUIRE(out.has_value());
     REQUIRE(out.value().primary_track_id == 0);
+}
+
+TEST_CASE("SDK initialize/shutdown/is_licensed is thread-safe", "[public_api]") {
+    UltraTrackerSDK::shutdown();
+
+    constexpr int num_threads = 8;
+    constexpr int iterations = 100;
+    std::atomic<int> ok_inits{0};
+    std::atomic<int> already_init{0};
+    std::atomic<int> licensed_checks{0};
+
+    std::vector<std::thread> threads;
+    threads.reserve(num_threads);
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&]() {
+            for (int i = 0; i < iterations; ++i) {
+                SDKConfig cfg;
+                cfg.license_key = "TRIAL";
+                auto status = UltraTrackerSDK::initialize(cfg);
+                if (status.ok()) {
+                    ++ok_inits;
+                } else if (status.code() == ErrorCode::ALREADY_INITIALIZED) {
+                    ++already_init;
+                }
+
+                if (UltraTrackerSDK::is_licensed()) {
+                    ++licensed_checks;
+                }
+
+                UltraTrackerSDK::shutdown();
+            }
+        });
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    // The mutex serializes state transitions; most initialize attempts succeed
+    // and is_licensed should observe licensed state at least once.
+    REQUIRE(ok_inits > 0);
+    REQUIRE(ok_inits + already_init == num_threads * iterations);
+    REQUIRE(licensed_checks > 0);
+
+    // Leave the SDK in a clean shutdown state for subsequent tests.
+    UltraTrackerSDK::shutdown();
+}
+
+TEST_CASE("TrackingSession respects backend setting", "[public_api]") {
+    SdkLicenseGuard guard;
+
+    TrackerSettings ts = default_tracker_settings();
+    ts.backend = DetectorBackend::ONNX_RUNTIME;
+    auto session = TrackingSession::create(ts);
+    REQUIRE_FALSE(session.has_value());
+    REQUIRE(session.error().code() == ErrorCode::NOT_IMPLEMENTED);
+
+    ts.backend = DetectorBackend::TENSORRT;
+    session = TrackingSession::create(ts);
+    REQUIRE_FALSE(session.has_value());
+    REQUIRE(session.error().code() == ErrorCode::NOT_IMPLEMENTED);
 }

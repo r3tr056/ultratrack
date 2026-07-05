@@ -5,7 +5,6 @@
       "name": "default",
       "hidden": false,
       "description": "Default UltraTrack build with vcpkg and tests enabled",
-      "generator": "Visual Studio 18 2026",
       "architecture": "x64",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {

@@ -43,6 +43,11 @@ if(ULTRATRACK_WITH_ONNXRUNTIME)
     target_link_libraries(ultratrack PUBLIC OnnxRuntime::OnnxRuntime)
 endif()
 
+if(ULTRATRACK_WITH_CUDA)
+    target_compile_definitions(ultratrack PRIVATE USE_CUDA)
+    target_link_libraries(ultratrack PUBLIC ${CUDA_LIBRARIES} ${CUDA_CUFFT_LIBRARIES})
+endif()
+
 # -----------------------------------------------------------------------------
 # SIMD / floating-point flags (detected per-target, never applied globally)
 # -----------------------------------------------------------------------------

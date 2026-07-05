@@ -32,7 +32,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    cv::VideoCapture cap(argc > 2 ? argv[2] : "0");
+    cv::VideoCapture cap;
+    if (argc > 2) {
+        cap.open(argv[2]);
+    } else {
+        cap.open(0);
+    }
     if (!cap.isOpened()) {
         std::cerr << "Cannot open video source\n";
         return 1;

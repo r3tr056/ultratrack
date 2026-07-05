@@ -92,28 +92,42 @@ Result<Rect2f> KCFTracker::predict(Track& track, const cv::Mat& frame) {
         cv::Mat resized_search;
         cv::resize(search_patch, resized_search, cfg_.template_size);
 
-        cv::Mat gray_search;
-        if (resized_search.channels() == 3) {
-            cv::cvtColor(resized_search, gray_search, cv::COLOR_BGR2GRAY);
-        } else {
-            gray_search = resized_search.clone();
+        auto channels = extractFeatureChannels(resized_search);
+        if (channels.empty()) {
+            return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "feature extraction failed");
         }
 
-        cv::Mat float_search;
-        gray_search.convertTo(float_search, CV_32F, 1.0 / 255.0);
-
-        internal::simd_hann_window(float_search.ptr<float>(), hann_window_.ptr<float>(),
-                                   float_search.ptr<float>(), static_cast<int>(float_search.total()));
-
-        cv::Mat search_fft = internal::fft2d(float_search);
-        if (search_fft.empty()) {
-            return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "search fft failed");
+        auto filters = splitComplexFilters(track.correlation_filter);
+        if (filters.empty() || filters.size() != channels.size()) {
+            return Status(ErrorCode::FEATURE_EXTRACTION_FAILED,
+                          "filter/feature channel count mismatch");
         }
 
-        cv::Mat response_fft(track.correlation_filter.size(), track.correlation_filter.type());
-        internal::simd_mul_spectrums(track.correlation_filter.ptr<float>(), search_fft.ptr<float>(),
-                                     response_fft.ptr<float>(),
-                                     static_cast<int>(track.correlation_filter.total()), true);
+        cv::Mat response_fft;
+        for (size_t c = 0; c < channels.size(); ++c) {
+            internal::simd_hann_window(channels[c].ptr<float>(), hann_window_.ptr<float>(),
+                                       channels[c].ptr<float>(),
+                                       static_cast<int>(channels[c].total()));
+
+            cv::Mat search_fft = internal::fft2d(channels[c]);
+            if (search_fft.empty()) {
+                return Status(ErrorCode::FEATURE_EXTRACTION_FAILED, "search fft failed");
+            }
+            if (search_fft.type() != CV_32FC2) {
+                search_fft.convertTo(search_fft, CV_32FC2);
+            }
+
+            cv::Mat channel_response(filters[c].size(), filters[c].type());
+            internal::simd_mul_spectrums(filters[c].ptr<float>(), search_fft.ptr<float>(),
+                                         channel_response.ptr<float>(),
+                                         static_cast<int>(filters[c].total()), true);
+
+            if (response_fft.empty()) {
+                response_fft = channel_response;
+            } else {
+                cv::add(response_fft, channel_response, response_fft);
+            }
+        }
 
         cv::Mat response = internal::ifft2d(response_fft);
         if (response.empty()) {
@@ -191,7 +205,9 @@ Status KCFTracker::update(Track& track, const cv::Mat& frame, const Rect2f& dete
         // Store the clamped rectangle so the canonical bbox stays inside the frame.
         track.bbox = Rect2f(safe);
 
-        if (track.correlation_filter.empty()) {
+        if (track.correlation_filter.empty() ||
+            track.correlation_filter.channels() != new_filter.channels()) {
+            // Replace the filter on first update or when the feature representation changed.
             track.correlation_filter = new_filter.clone();
         } else {
             track.correlation_filter = (1.0f - cfg_.learning_rate) * track.correlation_filter +
@@ -215,47 +231,122 @@ cv::Mat KCFTracker::createFilter(const cv::Mat& patch) {
     cv::Mat resized_patch;
     cv::resize(patch, resized_patch, cfg_.template_size);
 
-    cv::Mat gray_patch;
-    if (resized_patch.channels() == 3) {
-        cv::cvtColor(resized_patch, gray_patch, cv::COLOR_BGR2GRAY);
-    } else {
-        gray_patch = resized_patch.clone();
-    }
-
-    cv::Mat float_patch;
-    gray_patch.convertTo(float_patch, CV_32FC1, 1.0 / 255.0);
-
-    cv::Mat windowed_patch = float_patch.clone();
-
-    internal::simd_hann_window(windowed_patch.ptr<float>(), hann_window_.ptr<float>(),
-                               windowed_patch.ptr<float>(),
-                               static_cast<int>(windowed_patch.total()));
-
-    cv::Mat patch_fft = internal::fft2d(windowed_patch);
-
-    if (patch_fft.empty() || gaussian_target_fft_.empty()) {
+    auto channels = extractFeatureChannels(resized_patch);
+    if (channels.empty()) {
         return cv::Mat();
     }
 
-    if (patch_fft.type() != CV_32FC2) patch_fft.convertTo(patch_fft, CV_32FC2);
+    std::vector<cv::Mat> filters;
+    filters.reserve(channels.size());
 
-    cv::Mat numerator(gaussian_target_fft_.size(), gaussian_target_fft_.type());
-    internal::simd_mul_spectrums(gaussian_target_fft_.ptr<float>(), patch_fft.ptr<float>(),
-                                 numerator.ptr<float>(),
-                                 static_cast<int>(gaussian_target_fft_.total()), true);
+    for (auto& ch : channels) {
+        internal::simd_hann_window(ch.ptr<float>(), hann_window_.ptr<float>(),
+                                   ch.ptr<float>(),
+                                   static_cast<int>(ch.total()));
 
-    cv::Mat denominator(patch_fft.size(), patch_fft.type());
-    internal::simd_mul_spectrums(patch_fft.ptr<float>(), patch_fft.ptr<float>(),
-                                 denominator.ptr<float>(),
-                                 static_cast<int>(patch_fft.total()), true);
+        cv::Mat patch_fft = internal::fft2d(ch);
+        if (patch_fft.empty() || gaussian_target_fft_.empty()) {
+            return cv::Mat();
+        }
+        if (patch_fft.type() != CV_32FC2) {
+            patch_fft.convertTo(patch_fft, CV_32FC2);
+        }
 
-    cv::add(denominator, cv::Scalar(cfg_.lambda, 0.0f), denominator);
+        cv::Mat numerator(gaussian_target_fft_.size(), gaussian_target_fft_.type());
+        internal::simd_mul_spectrums(gaussian_target_fft_.ptr<float>(), patch_fft.ptr<float>(),
+                                     numerator.ptr<float>(),
+                                     static_cast<int>(gaussian_target_fft_.total()), true);
 
-    cv::Mat filter(numerator.size(), numerator.type());
-    internal::simd_div_spectrums(numerator.ptr<float>(), denominator.ptr<float>(),
-                                 filter.ptr<float>(),
-                                 static_cast<int>(numerator.total()));
-    return filter;
+        cv::Mat denominator(patch_fft.size(), patch_fft.type());
+        internal::simd_mul_spectrums(patch_fft.ptr<float>(), patch_fft.ptr<float>(),
+                                     denominator.ptr<float>(),
+                                     static_cast<int>(patch_fft.total()), true);
+
+        cv::add(denominator, cv::Scalar(cfg_.lambda, 0.0f), denominator);
+
+        cv::Mat filter(numerator.size(), numerator.type());
+        internal::simd_div_spectrums(numerator.ptr<float>(), denominator.ptr<float>(),
+                                     filter.ptr<float>(),
+                                     static_cast<int>(numerator.total()));
+        filters.push_back(filter);
+    }
+
+    return mergeComplexFilters(filters);
+}
+
+std::vector<cv::Mat> KCFTracker::extractFeatureChannels(const cv::Mat& patch) const {
+    std::vector<cv::Mat> channels;
+
+    cv::Mat features;
+    try {
+        features = feature_extractor_->extract(patch);
+    } catch (const cv::Exception&) {
+        features = cv::Mat();
+    } catch (const std::exception&) {
+        features = cv::Mat();
+    }
+
+    if (!features.empty() && features.channels() > 0) {
+        cv::split(features, channels);
+        for (auto& ch : channels) {
+            if (ch.size() != cfg_.template_size) {
+                cv::Mat resized;
+                cv::resize(ch, resized, cfg_.template_size);
+                ch = resized;
+            }
+            ch.convertTo(ch, CV_32F);
+        }
+    }
+
+    if (channels.empty()) {
+        // Grayscale fallback when the configured feature extractor cannot produce features.
+        cv::Mat gray;
+        if (patch.channels() == 3) {
+            cv::cvtColor(patch, gray, cv::COLOR_BGR2GRAY);
+        } else {
+            gray = patch.clone();
+        }
+        gray.convertTo(gray, CV_32F, 1.0 / 255.0);
+        channels.push_back(gray);
+    }
+
+    return channels;
+}
+
+cv::Mat KCFTracker::mergeComplexFilters(const std::vector<cv::Mat>& filters) {
+    if (filters.empty()) {
+        return cv::Mat();
+    }
+
+    std::vector<cv::Mat> all_planes;
+    all_planes.reserve(filters.size() * 2);
+    for (const auto& f : filters) {
+        std::vector<cv::Mat> planes;
+        cv::split(f, planes);
+        all_planes.insert(all_planes.end(), planes.begin(), planes.end());
+    }
+
+    cv::Mat merged;
+    cv::merge(all_planes, merged);
+    return merged;
+}
+
+std::vector<cv::Mat> KCFTracker::splitComplexFilters(const cv::Mat& filter) {
+    if (filter.empty() || filter.channels() % 2 != 0) {
+        return {};
+    }
+
+    std::vector<cv::Mat> all_planes;
+    cv::split(filter, all_planes);
+
+    std::vector<cv::Mat> filters;
+    filters.reserve(all_planes.size() / 2);
+    for (size_t i = 0; i + 1 < all_planes.size(); i += 2) {
+        cv::Mat f;
+        cv::merge(std::vector<cv::Mat>{all_planes[i], all_planes[i + 1]}, f);
+        filters.push_back(f);
+    }
+    return filters;
 }
 
 } // namespace ultratrack

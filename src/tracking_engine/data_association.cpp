@@ -1,5 +1,6 @@
 #include <ultratrack/tracking_engine/data_association.hpp>
 #include <ultratrack/core/math.hpp>
+#include <spdlog/spdlog.h>
 #include <limits>
 #include <algorithm>
 #include <cmath>
@@ -46,9 +47,17 @@ AssociationResult DataAssociation::associate(const std::vector<Track>& tracks,
         for (size_t j = 0; j < detections.size(); ++j) {
             if (!det_used[j]) result.unmatched_detections.push_back(j);
         }
-    } catch (...) {
+    } catch (const std::exception& e) {
         // Exception safety across the library boundary: fall back to returning
         // every input as unmatched so callers receive a valid, conservative result.
+        spdlog::error("DataAssociation::associate failed: {}", e.what());
+        result.matches.clear();
+        result.unmatched_tracks.clear();
+        result.unmatched_detections.clear();
+        for (size_t i = 0; i < tracks.size(); ++i) result.unmatched_tracks.push_back(i);
+        for (size_t j = 0; j < detections.size(); ++j) result.unmatched_detections.push_back(j);
+    } catch (...) {
+        spdlog::error("DataAssociation::associate failed: unknown error");
         result.matches.clear();
         result.unmatched_tracks.clear();
         result.unmatched_detections.clear();
