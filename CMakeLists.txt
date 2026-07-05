@@ -40,6 +40,7 @@ endif()
 # -----------------------------------------------------------------------------
 add_subdirectory(src)
 add_subdirectory(examples)
+add_subdirectory(tools)
 
 if(BUILD_TESTS)
     # Always pass --output-on-failure to the built-in `test` / `RUN_TESTS` target.
