@@ -1,7 +1,6 @@
 #pragma once
 #include <opencv2/core.hpp>
 #include <cstdint>
-#include <vector>
 
 namespace ultratrack {
 

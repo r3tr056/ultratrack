@@ -1,7 +1,8 @@
 #pragma once
+#include <cassert>
+#include <cstdlib>
 #include <string>
 #include <variant>
-#include <optional>
 
 namespace ultratrack {
 
@@ -48,10 +49,65 @@ public:
     bool has_value() const { return std::holds_alternative<T>(data_); }
     bool ok() const { return has_value(); }
 
-    T& value() { return std::get<T>(data_); }
-    const T& value() const { return std::get<T>(data_); }
-    Status& error() { return std::get<Status>(data_); }
-    const Status& error() const { return std::get<Status>(data_); }
+    /// Returns the contained value.
+    /// @pre The Result is in the value state (has_value() == true).
+    ///      Calling this on an error Result terminates the program.
+    T& value() noexcept {
+        T* ptr = std::get_if<T>(&data_);
+        if (ptr == nullptr) {
+            assert(false && "Result<T>::value() called on an error Result");
+            std::terminate();
+        }
+        return *ptr;
+    }
+
+    /// Returns the contained value.
+    /// @pre The Result is in the value state (has_value() == true).
+    ///      Calling this on an error Result terminates the program.
+    const T& value() const noexcept {
+        const T* ptr = std::get_if<T>(&data_);
+        if (ptr == nullptr) {
+            assert(false && "Result<T>::value() called on an error Result");
+            std::terminate();
+        }
+        return *ptr;
+    }
+
+    /// Returns the contained error Status.
+    /// @pre The Result is in the error state (has_value() == false).
+    ///      Calling this on a value Result terminates the program.
+    Status& error() noexcept {
+        Status* ptr = std::get_if<Status>(&data_);
+        if (ptr == nullptr) {
+            assert(false && "Result<T>::error() called on a value Result");
+            std::terminate();
+        }
+        return *ptr;
+    }
+
+    /// Returns the contained error Status.
+    /// @pre The Result is in the error state (has_value() == false).
+    ///      Calling this on a value Result terminates the program.
+    const Status& error() const noexcept {
+        const Status* ptr = std::get_if<Status>(&data_);
+        if (ptr == nullptr) {
+            assert(false && "Result<T>::error() called on a value Result");
+            std::terminate();
+        }
+        return *ptr;
+    }
+
+    /// Returns the contained value or @p default_value if this is an error.
+    T value_or(const T& default_value) const noexcept {
+        const T* ptr = std::get_if<T>(&data_);
+        return ptr != nullptr ? *ptr : default_value;
+    }
+
+    /// Returns the contained error or @p default_status if this is a value.
+    Status error_or(const Status& default_status) const noexcept {
+        const Status* ptr = std::get_if<Status>(&data_);
+        return ptr != nullptr ? *ptr : default_status;
+    }
 
     template <typename F>
     auto map(F&& f) -> Result<std::invoke_result_t<F, T&>> {

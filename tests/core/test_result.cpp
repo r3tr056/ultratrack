@@ -17,6 +17,22 @@ TEST_CASE("Result holds an error", "[core]") {
     REQUIRE(r.error().message() == "bad input");
 }
 
+TEST_CASE("Result value_or returns default on error", "[core]") {
+    Status s(ErrorCode::INVALID_ARGUMENT, "bad input");
+    Result<int> r = s;
+    REQUIRE(!r.has_value());
+    REQUIRE(r.value_or(0) == 0);
+}
+
+TEST_CASE("Result error_or returns default on value", "[core]") {
+    Result<int> r = 42;
+    REQUIRE(r.has_value());
+    Status default_status(ErrorCode::UNKNOWN, "default");
+    Status err = r.error_or(default_status);
+    REQUIRE(err.code() == ErrorCode::UNKNOWN);
+    REQUIRE(err.message() == "default");
+}
+
 TEST_CASE("Result map transforms value", "[core]") {
     Result<int> r = 21;
     auto doubled = r.map([](int x) { return x * 2; });
