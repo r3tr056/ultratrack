@@ -3,6 +3,8 @@
 #include <ultratrack/ultratrack_sdk.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <spdlog/spdlog.h>
+#include <vector>
 
 using namespace ultratrack;
 
@@ -44,6 +46,28 @@ TEST_CASE("SDK initializes with trial license", "[public_api]") {
     REQUIRE(status.ok());
     REQUIRE(UltraTrackerSDK::is_licensed());
     UltraTrackerSDK::shutdown();
+}
+
+TEST_CASE("SDK LogLevel maps to spdlog level", "[public_api]") {
+    UltraTrackerSDK::shutdown();
+
+    const std::vector<std::pair<LogLevel, spdlog::level::level_enum>> mappings = {
+        {LogLevel::TRACE, spdlog::level::trace},
+        {LogLevel::DEBUG, spdlog::level::debug},
+        {LogLevel::INFO, spdlog::level::info},
+        {LogLevel::WARN, spdlog::level::warn},
+        {LogLevel::ERROR, spdlog::level::err},
+        {LogLevel::CRITICAL, spdlog::level::critical},
+    };
+
+    for (const auto& [level, expected] : mappings) {
+        SDKConfig cfg;
+        cfg.license_key = "TRIAL";
+        cfg.log_level = level;
+        REQUIRE(UltraTrackerSDK::initialize(cfg).ok());
+        REQUIRE(spdlog::default_logger()->level() == expected);
+        UltraTrackerSDK::shutdown();
+    }
 }
 
 TEST_CASE("SDK double initialize returns error", "[public_api]") {

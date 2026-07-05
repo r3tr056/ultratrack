@@ -115,8 +115,18 @@ Result<void> TrackingSession::reset() {
     }
 }
 
-const std::vector<Track>& TrackingSession::activeTracks() const {
-    return impl_->track_manager->activeTracks();
+const std::vector<Track>& TrackingSession::activeTracks() const noexcept {
+    try {
+        return impl_->track_manager->activeTracks();
+    } catch (const cv::Exception&) {
+        // Swallow internal OpenCV errors and return an empty track list.
+    } catch (const std::exception&) {
+        // Swallow internal errors and return an empty track list.
+    } catch (...) {
+        // Swallow any unknown internal errors and return an empty track list.
+    }
+    static const std::vector<Track> empty;
+    return empty;
 }
 
 } // namespace ultratrack

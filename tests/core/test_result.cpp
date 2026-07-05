@@ -52,3 +52,27 @@ TEST_CASE("Default Status is OK", "[core]") {
     REQUIRE(s.ok());
     REQUIRE(s.code() == ErrorCode::OK);
 }
+
+TEST_CASE("Result<void> map accepts void-returning callable", "[core]") {
+    bool called = false;
+    Result<void> ok;
+    auto result = ok.map([&called]() { called = true; });
+    REQUIRE(called);
+    REQUIRE(result.ok());
+}
+
+TEST_CASE("Result<void> map propagates error for void callable", "[core]") {
+    bool called = false;
+    Result<void> err(Status(ErrorCode::INTERNAL_ERROR, "fail"));
+    auto result = err.map([&called]() { called = true; });
+    REQUIRE(!called);
+    REQUIRE(!result.ok());
+    REQUIRE(result.error().code() == ErrorCode::INTERNAL_ERROR);
+}
+
+TEST_CASE("Result<void> map still supports value-returning callable", "[core]") {
+    Result<void> ok;
+    auto result = ok.map([]() { return 42; });
+    REQUIRE(result.ok());
+    REQUIRE(result.value() == 42);
+}

@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <string>
+#include <type_traits>
 #include <variant>
 
 namespace ultratrack {
@@ -147,10 +148,22 @@ public:
         return status_.ok() ? default_status : status_;
     }
 
+    /// Maps a successful Result<void> to a value-producing callable.
     template <typename F>
-    auto map(F&& f) -> Result<std::invoke_result_t<F>> {
+    auto map(F&& f) -> std::enable_if_t<!std::is_void_v<std::invoke_result_t<F>>,
+                                        Result<std::invoke_result_t<F>>> {
         if (status_.ok()) {
             return f();
+        }
+        return status_;
+    }
+
+    /// Maps a successful Result<void> to a void-returning callable.
+    template <typename F>
+    auto map(F&& f) -> std::enable_if_t<std::is_void_v<std::invoke_result_t<F>>, Result<void>> {
+        if (status_.ok()) {
+            f();
+            return Result<void>();
         }
         return status_;
     }

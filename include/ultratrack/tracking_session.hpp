@@ -31,7 +31,11 @@ public:
     Result<TrackingOutput> processFrame(const Frame& frame);
     Result<void> selectPrimaryTarget(uint64_t track_id);
     Result<void> reset();
-    const std::vector<Track>& activeTracks() const;
+
+    /// Returns the current set of active tracks.
+    /// This function is noexcept. If the internal tracker throws, an empty
+    /// vector is returned and the exception is swallowed.
+    const std::vector<Track>& activeTracks() const noexcept;
 
     ~TrackingSession();
 
