@@ -4,6 +4,7 @@
 #include <ultratrack/detector/detector_backend.hpp>
 #include <ultratrack/tracker/features/feature_extractor.hpp>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace ultratrack {
@@ -31,6 +32,10 @@ public:
     Result<TrackingOutput> processFrame(const Frame& frame);
     Result<void> selectPrimaryTarget(uint64_t track_id);
     Result<void> reset();
+
+    /// Returns a snapshot of per-stage timing metrics collected during processFrame.
+    /// If the internal collector is unavailable, an empty map is returned.
+    std::unordered_map<std::string, double> metricsSnapshot() const noexcept;
 
     /// Returns the current set of active tracks.
     /// This function is noexcept. If the internal tracker throws, an empty

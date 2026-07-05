@@ -3,6 +3,7 @@ set(ULTRATRACK_SOURCES
     ultratrack_sdk.cpp
     tracking_session.cpp
     simd_optimization.cpp
+    telemetry/metrics.cpp
     benchmark/harness.cpp
     core/result.cpp
     core/types.cpp

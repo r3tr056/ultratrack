@@ -6,6 +6,7 @@ add_executable(ultratrack_tests
     test_scale.cpp
     test_features.cpp
     test_tracker.cpp
+    telemetry/test_metrics.cpp
     benchmark/test_harness.cpp
     core/test_result.cpp
     core/test_math.cpp

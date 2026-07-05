@@ -1,5 +1,6 @@
 #include <ultratrack/tracking_session.hpp>
 #include <ultratrack/detector/opencv_dnn_backend.hpp>
+#include <ultratrack/telemetry/metrics.hpp>
 #include <ultratrack/tracking_engine/track_manager.hpp>
 #include <ultratrack/ultratrack_sdk.hpp>
 #include <opencv2/imgproc.hpp>
@@ -14,6 +15,7 @@ public:
     TrackerSettings settings;
     std::unique_ptr<IDetectorBackend> detector;
     std::unique_ptr<TrackManager> track_manager;
+    MetricsCollector metrics;
     uint64_t primary_track_id = 0;
 };
 
@@ -69,12 +71,18 @@ Result<TrackingOutput> TrackingSession::processFrame(const Frame& frame) {
             return Status(ErrorCode::NOT_IMPLEMENTED, "frame format not supported");
         }
 
-        auto detections = impl_->detector->detect(frame);
+        auto detections = [&] {
+            StageTimer timer(impl_->metrics, "detect");
+            return impl_->detector->detect(frame);
+        }();
         if (!detections.has_value()) {
             return detections.error();
         }
 
-        auto status = impl_->track_manager->update(detections.value(), bgr);
+        auto status = [&] {
+            StageTimer timer(impl_->metrics, "track");
+            return impl_->track_manager->update(detections.value(), bgr);
+        }();
         if (!status.ok()) {
             return status;
         }
@@ -93,6 +101,14 @@ Result<TrackingOutput> TrackingSession::processFrame(const Frame& frame) {
         return out;
     } catch (const std::exception& e) {
         return Status(ErrorCode::INTERNAL_ERROR, std::string("processFrame failed: ") + e.what());
+    }
+}
+
+std::unordered_map<std::string, double> TrackingSession::metricsSnapshot() const noexcept {
+    try {
+        return impl_->metrics.snapshot();
+    } catch (...) {
+        return {};
     }
 }
 
