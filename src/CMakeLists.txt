@@ -17,12 +17,15 @@ target_include_directories(ultratrack
     PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 target_link_libraries(ultratrack
-    PUBLIC ${OpenCV_LIBS}
-    PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json Threads::Threads)
+    PUBLIC
+        ${OpenCV_LIBS}
+        spdlog::spdlog
+        nlohmann_json::nlohmann_json
+        Threads::Threads)
 
 if(ULTRATRACK_WITH_ONNXRUNTIME)
-    target_compile_definitions(ultratrack PRIVATE ULTRATRACK_WITH_ONNXRUNTIME)
-    target_link_libraries(ultratrack PRIVATE OnnxRuntime::OnnxRuntime)
+    target_compile_definitions(ultratrack PUBLIC ULTRATRACK_WITH_ONNXRUNTIME)
+    target_link_libraries(ultratrack PUBLIC OnnxRuntime::OnnxRuntime)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -40,7 +43,14 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|x64|i[3-6]86|x86")
             list(APPEND ULTRATRACK_SIMD_FLAGS "/arch:AVX2")
             list(APPEND ULTRATRACK_SIMD_DEFS "__AVX2__")
             set(COMPILER_SUPPORTS_AVX2 TRUE)
+        elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            # x64 MSVC: SSE2/SSE4.2 are baseline, so /arch:SSE2 is rejected.
+            # Define the macro so source code can use SSE4.2 intrinsics.
+            list(APPEND ULTRATRACK_SIMD_DEFS "__SSE4_2__")
+            set(COMPILER_SUPPORTS_SSE42 TRUE)
         else()
+            # 32-bit MSVC fallback: explicitly enable SSE2. The SSE4.2
+            # intrinsics are still available once the macro is defined.
             check_cxx_compiler_flag("/arch:SSE2" ULTRATRACK_SSE2_OK)
             if(ULTRATRACK_SSE2_OK)
                 list(APPEND ULTRATRACK_SIMD_FLAGS "/arch:SSE2")
@@ -97,7 +107,6 @@ add_executable(ultratrack_cli main.cpp)
 target_link_libraries(ultratrack_cli PRIVATE ultratrack)
 set_target_properties(ultratrack_cli PROPERTIES
     OUTPUT_NAME ultratrack
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Release
 )
 if(WIN32)
     target_compile_definitions(ultratrack_cli PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601)
@@ -105,25 +114,23 @@ if(WIN32)
 endif()
 
 # -----------------------------------------------------------------------------
-# Runtime data / models directories (restores original output-dir behaviour)
+# Runtime data / models directories (created next to the executable)
 # -----------------------------------------------------------------------------
-add_custom_target(create_runtime_dirs ALL
+add_custom_command(TARGET ultratrack_cli POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
-            ${CMAKE_BINARY_DIR}/Release/models
-            ${CMAKE_BINARY_DIR}/Release/data
-    COMMENT "Creating runtime models/data directories"
+            $<TARGET_FILE_DIR:ultratrack_cli>/models
+            $<TARGET_FILE_DIR:ultratrack_cli>/data
+    COMMENT "Creating runtime models/data directories next to ultratrack_cli"
 )
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/data/cn_lookup.bin)
-    configure_file(
-        ${CMAKE_SOURCE_DIR}/data/cn_lookup.bin
-        ${CMAKE_BINARY_DIR}/Release/data/cn_lookup.bin
-        COPYONLY
+    add_custom_command(TARGET ultratrack_cli POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_SOURCE_DIR}/data/cn_lookup.bin
+                $<TARGET_FILE_DIR:ultratrack_cli>/data/cn_lookup.bin
+        COMMENT "Copying cn_lookup.bin next to ultratrack_cli"
     )
 endif()
-
-# Ensure the directories are created whenever the CLI or tests are built.
-add_dependencies(ultratrack_cli create_runtime_dirs)
 
 # Make summary variables visible in the top-level CMakeLists.txt
 set(ULTRATRACK_SIMD_AVX2  ${COMPILER_SUPPORTS_AVX2}  PARENT_SCOPE)

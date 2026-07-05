@@ -1,4 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
+
+# -----------------------------------------------------------------------------
+# Default build type for single-config generators
+# -----------------------------------------------------------------------------
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
 project(ultratrack VERSION 1.0.0 LANGUAGES CXX)
 
 # -----------------------------------------------------------------------------
@@ -13,14 +22,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # -----------------------------------------------------------------------------
 option(BUILD_TESTS "Build unit tests" ON)
 option(ULTRATRACK_WITH_ONNXRUNTIME "Enable ONNX Runtime backend" OFF)
-
-# -----------------------------------------------------------------------------
-# Default build type for single-config generators
-# -----------------------------------------------------------------------------
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif()
 
 # -----------------------------------------------------------------------------
 # Dependencies
@@ -41,25 +42,13 @@ add_subdirectory(src)
 
 if(BUILD_TESTS)
     # Always pass --output-on-failure to the built-in `test` / `RUN_TESTS` target.
+    # Note: CMake reserves the lowercase target name `test`, so we do not create
+    # a custom one. On multi-config generators use `RUN_TESTS` or run `ctest`
+    # directly (e.g. `ctest --test-dir build --output-on-failure -C Release`).
     set(CMAKE_CTEST_ARGUMENTS --output-on-failure)
 
     enable_testing()
     add_subdirectory(tests)
-
-    # CMake reserves the lowercase target name `test` when CTest is enabled.
-    # Visual Studio / Xcode do not create a built-in `test` target, so add a
-    # `Test` target.  MSBuild resolves target names case-insensitively, so
-    # `cmake --build build --target test` still works on Windows.  On Makefile /
-    # Ninja generators the built-in `test` target already exists and picks up
-    # CMAKE_CTEST_ARGUMENTS above.
-    if(CMAKE_CONFIGURATION_TYPES)
-        add_custom_target(Test
-            COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C $<CONFIG>
-            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-            COMMENT "Running CTest suite"
-        )
-        add_dependencies(Test ultratrack_tests)
-    endif()
 endif()
 
 # -----------------------------------------------------------------------------
