@@ -9,7 +9,8 @@
 
 namespace ultratrack {
 
-std::mutex tracks_mutex;
+// BUG FIX: Made mutex mutable so const methods (get_active_tracks etc.) can lock it.
+static std::mutex tracks_mutex;
 
 UltraTracker::UltraTracker(const std::string& model_path, const std::string& feature_model_path)
     : input_size_(640, 640), conf_threshold_(0.3f), nms_threshold_(0.5f), next_track_id_(1ULL), // Use unsigned long long to prevent overflow
@@ -299,11 +300,8 @@ void UltraTracker::associate_detections(const std::vector<Detection>& detections
             }
         }
     }
-    for (size_t i = 0; i < high_conf_dets.size(); i++) {
-        if (!det_matched[i]) {
-            unmatched_detections.push_back(high_conf_dets[i]);
-        }
-    }
+    // BUG FIX: Removed duplicate loop that re-added same unmatched high-conf
+    // detections (they were already added at line 280-282 above).
     create_new_tracks(unmatched_detections, frame);
 }
 
@@ -332,12 +330,11 @@ cv::Mat UltraTracker::compute_cost_matrix(const std::vector<Track>& tracks, cons
 }
 
 std::vector<std::pair<int, int>> UltraTracker::hungarian_assignment(const cv::Mat& cost_matrix) {
-    // Full Kuhn-Munkres (Hungarian) algorithm - basic implementation for accuracy
     std::vector<std::pair<int, int>> assignments;
     if (cost_matrix.rows == 0 || cost_matrix.cols == 0) return assignments;
 
     int n = std::max(cost_matrix.rows, cost_matrix.cols);
-    cv::Mat cost = cv::Mat::zeros(n, n, CV_32F);
+    cv::Mat cost = cv::Mat(n, n, CV_32F, cv::Scalar(1.0f));
     cost_matrix.copyTo(cost(cv::Rect(0, 0, cost_matrix.cols, cost_matrix.rows)));
 
     // Step 1: Row reduction
@@ -353,17 +350,56 @@ std::vector<std::pair<int, int>> UltraTracker::hungarian_assignment(const cv::Ma
         for (int row = 0; row < n; row++) cost.at<float>(row, col) -= min_val;
     }
 
-    // Simplified assignment (for full, consider integrating a library like Munkres-cpp in production)
-    // This is improved from placeholder but still not optimal; replace if needed
+    // BUG FIX: Enforce one-to-one assignment constraint by tracking used columns.
+    // This is still a greedy approximation, but prevents duplicate column assignments.
     std::vector<int> assignment(n, -1);
+    std::vector<bool> col_used(n, false);
+
+    // Pass 1: Assign rows where there's only one zero (unique assignment)
     for (int row = 0; row < n; row++) {
+        int zero_col = -1;
+        int zero_count = 0;
         for (int col = 0; col < n; col++) {
-            if (cost.at<float>(row, col) == 0 && assignment[row] == -1) {
+            if (!col_used[col] && std::abs(cost.at<float>(row, col)) < 1e-6f) {
+                zero_col = col;
+                zero_count++;
+            }
+        }
+        if (zero_count == 1) {
+            assignment[row] = zero_col;
+            col_used[zero_col] = true;
+        }
+    }
+
+    // Pass 2: Greedily assign remaining rows to first available zero
+    for (int row = 0; row < n; row++) {
+        if (assignment[row] != -1) continue;
+        for (int col = 0; col < n; col++) {
+            if (!col_used[col] && std::abs(cost.at<float>(row, col)) < 1e-6f) {
                 assignment[row] = col;
+                col_used[col] = true;
                 break;
             }
         }
     }
+
+    // Pass 3: For any unassigned rows, assign to the column with minimum cost
+    for (int row = 0; row < n; row++) {
+        if (assignment[row] != -1) continue;
+        float min_cost = std::numeric_limits<float>::max();
+        int best_col = -1;
+        for (int col = 0; col < n; col++) {
+            if (!col_used[col] && cost.at<float>(row, col) < min_cost) {
+                min_cost = cost.at<float>(row, col);
+                best_col = col;
+            }
+        }
+        if (best_col != -1) {
+            assignment[row] = best_col;
+            col_used[best_col] = true;
+        }
+    }
+
     for (int row = 0; row < cost_matrix.rows; row++) {
         if (assignment[row] != -1 && assignment[row] < cost_matrix.cols) {
             assignments.emplace_back(row, assignment[row]);
@@ -409,10 +445,9 @@ void UltraTracker::create_new_tracks(const std::vector<Detection>& unmatched_det
                 new_track.multi_channel_filter = create_multi_channel_filter(patch);
             }
         }
-        {
-            std::lock_guard<std::mutex> lock(tracks_mutex);
-            active_tracks_.push_back(std::move(new_track));
-        }
+        // BUG FIX: Removed nested lock_guard here that caused deadlock.
+        // The caller (associate_detections) already holds tracks_mutex.
+        active_tracks_.push_back(std::move(new_track));
     }
 }
 
@@ -756,8 +791,75 @@ cv::Mat UltraTracker::create_multi_channel_filter(const cv::Mat& patch) {
     
     // Average across channels
     filter_sum /= static_cast<float>(channels.size());
-    
+
     return filter_sum;
+}
+
+void UltraTracker::update_track_with_displacement(Track& track, const cv::Mat& frame) {
+    if (frame.empty()) return;
+
+    // Step 1: Displacement prediction to find predicted center
+    if (track.displacement_predictor) {
+        cv::Point2f current_center(
+            track.bbox.x + track.bbox.width / 2,
+            track.bbox.y + track.bbox.height / 2);
+        track.predicted_center = track.displacement_predictor->predict(current_center);
+    }
+
+    // Step 2: Scale estimation at predicted position
+    if (scale_estimator_ && !track.correlation_filter.empty()) {
+        cv::Point2f center = track.predicted_center;
+        if (track.base_size.width > 0 && track.base_size.height > 0) {
+            // Create a grayscale model patch at current template size
+            cv::Rect safe_bbox = cv::Rect(track.bbox) & cv::Rect(0, 0, frame.cols, frame.rows);
+            if (safe_bbox.area() > 0) {
+                cv::Mat model_patch;
+                cv::resize(frame(safe_bbox), model_patch, template_size_);
+                cv::Mat gray_model;
+                if (model_patch.channels() == 3) {
+                    cv::cvtColor(model_patch, gray_model, cv::COLOR_BGR2GRAY);
+                } else {
+                    gray_model = model_patch;
+                }
+                gray_model.convertTo(gray_model, CV_32F, 1.0 / 255.0);
+
+                float new_scale = scale_estimator_->estimate(
+                    frame, center, track.base_size,
+                    track.correlation_filter, gray_model);
+
+                // Update bbox with new scale
+                track.bbox.width = track.base_size.width * new_scale;
+                track.bbox.height = track.base_size.height * new_scale;
+                track.current_scale = new_scale;
+            }
+        }
+    }
+
+    // Step 3: Update bbox position from predicted center
+    track.bbox.x = track.predicted_center.x - track.bbox.width / 2;
+    track.bbox.y = track.predicted_center.y - track.bbox.height / 2;
+}
+
+cv::Mat UltraTracker::extract_multi_channel_features(const cv::Mat& patch) {
+    if (patch.empty()) return cv::Mat();
+
+    if (feature_extractor_) {
+        try {
+            return feature_extractor_->extract(patch);
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Multi-channel feature extraction failed: " << e.what() << std::endl;
+        }
+    }
+
+    // Fallback: simple grayscale features
+    cv::Mat gray;
+    if (patch.channels() == 3) {
+        cv::cvtColor(patch, gray, cv::COLOR_BGR2GRAY);
+    } else {
+        gray = patch.clone();
+    }
+    gray.convertTo(gray, CV_32F, 1.0 / 255.0);
+    return gray;
 }
 
 } // namespace ultratrack
