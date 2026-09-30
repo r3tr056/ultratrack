@@ -1,0 +1,10 @@
+{
+  "name": "ultratrack",
+  "version": "1.0.0",
+  "dependencies": [
+    "opencv4",
+    "spdlog",
+    "nlohmann-json",
+    "catch2"
+  ]
+}

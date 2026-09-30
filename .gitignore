@@ -3,6 +3,12 @@
 .vcpkg/
 vcpkg/
 
+# Local tool caches
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
 ##### Windows
 # Windows thumbnail cache files
 Thumbs.db

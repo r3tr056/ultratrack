@@ -10,9 +10,9 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/dnn.hpp>
 
-#include "feature_extractor.hpp"
-#include "tracking/displacement_predictor.hpp"
-#include "tracking/scale_estimator.hpp"
+#include <ultratrack/tracker/features/feature_extractor.hpp>
+#include <ultratrack/tracker/displacement_predictor.hpp>
+#include <ultratrack/tracker/scale_estimator.hpp>
 #include "errors.hpp"
 
 #ifdef _WIN32

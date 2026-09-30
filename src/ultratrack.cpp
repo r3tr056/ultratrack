@@ -1,4 +1,5 @@
 #include "ultratrack.hpp"
+#include "tracker/simd_helpers.hpp"
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
@@ -57,10 +58,11 @@ UltraTracker::UltraTracker(const std::string& model_path, const std::string& fea
     }
     init_kalman_matrices();
 
-    cv::Mat hann_1d = create_hann_window(template_size_.width);
-    cv::mulTransposed(hann_1d, hann_window_, false);
+    cv::Mat hann_x = create_hann_window(template_size_.width);
+    cv::Mat hann_y = create_hann_window(template_size_.height);
+    hann_window_ = hann_y.t() * hann_x;
     hann_window_.convertTo(hann_window_, CV_32FC1);
-    
+
     cv::Mat gaussian_1d_x = cv::getGaussianKernel(template_size_.width, sigma_, CV_32FC1);
     cv::Mat gaussian_1d_y = cv::getGaussianKernel(template_size_.height, sigma_, CV_32FC1);
     gaussian_target_ = gaussian_1d_y * gaussian_1d_x.t();
@@ -732,8 +734,9 @@ void UltraTracker::set_nms_threshold(float threshold) {
 void UltraTracker::set_template_size(const cv::Size& size) {
     if (size.width > 0 && size.height > 0) {
         template_size_ = size;
-        cv::Mat hann_1d = create_hann_window(template_size_.width);
-        cv::mulTransposed(hann_1d, hann_window_, false);
+        cv::Mat hann_x = create_hann_window(template_size_.width);
+        cv::Mat hann_y = create_hann_window(template_size_.height);
+        hann_window_ = hann_y.t() * hann_x;
         if (hann_window_.depth() != CV_32F)
             hann_window_.convertTo(hann_window_, CV_32F);
         cv::Mat gaussian_1d_x = cv::getGaussianKernel(template_size_.width, sigma_, CV_32F);
@@ -743,12 +746,7 @@ void UltraTracker::set_template_size(const cv::Size& size) {
 }
 
 cv::Mat UltraTracker::create_hann_window(int size) {
-    cv::Mat hann(1, size, CV_32F);
-    float* data = hann.ptr<float>();
-    for (int i = 0; i < size; i++) {
-        data[i] = 0.5f * (1.0f - std::cos(2.0f * CV_PI * i / (size - 1)));
-    }
-    return hann;
+    return internal::create_hann_window(size);
 }
 
 cv::Mat UltraTracker::create_multi_channel_filter(const cv::Mat& patch) {

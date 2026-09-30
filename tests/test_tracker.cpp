@@ -1,74 +1,60 @@
 // tests/test_tracker.cpp
 #include "ultratrack.hpp"
-#include <cassert>
-#include <iostream>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
-#include <memory>
+#include <iostream>
 
 using namespace ultratrack;
 
-void test_tracker_config_modes() {
-    std::cout << "  Note: Skipping model-dependent tests (no ONNX model)\n";
-    
-    // Test config creation
+TEST_CASE("Tracker config modes", "[tracker]") {
     TrackerConfig config;
     config.mode = TrackingMode::ACCURATE;
     config.displacement.kappa = 0.8f;
     config.scale.num_scales = 3;
-    
-    assert(config.mode == TrackingMode::ACCURATE);
-    assert(config.displacement.kappa == 0.8f);
-    assert(config.scale.num_scales == 3);
-    
-    std::cout << "  PASS: test_tracker_config_modes\n";
+
+    REQUIRE(config.mode == TrackingMode::ACCURATE);
+    REQUIRE(config.displacement.kappa == 0.8f);
+    REQUIRE(config.scale.num_scales == 3);
 }
 
-void test_displacement_config() {
+TEST_CASE("Displacement config integration", "[tracker]") {
     DisplacementConfig config;
     config.enabled = true;
     config.kappa = 0.9f;
     config.min_threshold = 1.0f;
     config.max_threshold = 150.0f;
-    
+
     DisplacementPredictor pred(config);
-    
-    assert(pred.get_config().kappa == 0.9f);
-    assert(pred.get_config().min_threshold == 1.0f);
-    
-    std::cout << "  PASS: test_displacement_config\n";
+
+    REQUIRE(pred.get_config().kappa == 0.9f);
+    REQUIRE(pred.get_config().min_threshold == 1.0f);
 }
 
-void test_scale_config() {
+TEST_CASE("Scale config integration", "[tracker]") {
     ScaleConfig config;
     config.num_scales = 5;
     config.scale_step = 0.02f;
     config.scale_penalty = 0.98f;
-    
+
     ScaleEstimator est(config);
-    
-    assert(est.get_config().num_scales == 5);
-    assert(est.get_scale_pool().size() == 5);
-    
-    std::cout << "  PASS: test_scale_config\n";
+
+    REQUIRE(est.get_config().num_scales == 5);
+    REQUIRE(est.get_scale_pool().size() == 5);
 }
 
-void test_feature_extractor_integration() {
+TEST_CASE("Feature extractor integration", "[tracker]") {
     MultiFeatureExtractor ext(TrackingMode::ACCURATE);
-    
-    // Create synthetic frame
+
     cv::Mat frame = cv::Mat::zeros(480, 640, CV_8UC3);
     cv::rectangle(frame, cv::Rect(100, 100, 64, 64), cv::Scalar(0, 0, 255), -1);
-    
+
     cv::Mat patch = frame(cv::Rect(100, 100, 64, 64));
     cv::Mat features = ext.extract(patch);
-    
-    assert(!features.empty());
-    
-    std::cout << "  PASS: test_feature_extractor_integration\n";
+
+    REQUIRE(!features.empty());
 }
 
-void test_tracking_pipeline_components() {
-    // Test that all components can be instantiated together
+TEST_CASE("Tracking pipeline components", "[tracker]") {
     TrackerConfig config;
     config.mode = TrackingMode::BALANCED;
 
@@ -76,51 +62,45 @@ void test_tracking_pipeline_components() {
     auto scale_est = std::make_unique<ScaleEstimator>(config.scale);
     auto disp_pred = std::make_unique<DisplacementPredictor>(config.displacement);
 
-    assert(feature_ext->total_dimensions() == 32);
-    assert(scale_est->get_scale_pool().size() == 3);
-    assert(!disp_pred->is_ready());
-
-    std::cout << "  PASS: test_tracking_pipeline_components\n";
+    REQUIRE(feature_ext->total_dimensions() == 32);
+    REQUIRE(scale_est->get_scale_pool().size() == 3);
+    REQUIRE(!disp_pred->is_ready());
 }
 
 // --- Additional regression and integration tests ---
 
-void test_tracker_config_defaults() {
+TEST_CASE("tracker config defaults", "[tracker][regression]") {
     TrackerConfig config;
-    assert(config.mode == TrackingMode::ACCURATE);
-    assert(std::abs(config.learning_rate - 0.01f) < 0.001f);
-    assert(std::abs(config.lambda - 0.01f) < 0.001f);
-    assert(std::abs(config.sigma - 2.0f) < 0.001f);
-    assert(config.displacement.enabled == true);
-    assert(std::abs(config.displacement.kappa - 0.8f) < 0.001f);
-    assert(config.scale.num_scales == 3);
-
-    std::cout << "  PASS: test_tracker_config_defaults\n";
+    REQUIRE(config.mode == TrackingMode::ACCURATE);
+    REQUIRE(std::abs(config.learning_rate - 0.01f) < 0.001f);
+    REQUIRE(std::abs(config.lambda - 0.01f) < 0.001f);
+    REQUIRE(std::abs(config.sigma - 2.0f) < 0.001f);
+    REQUIRE(config.displacement.enabled == true);
+    REQUIRE(std::abs(config.displacement.kappa - 0.8f) < 0.001f);
+    REQUIRE(config.scale.num_scales == 3);
 }
 
-void test_mode_switching_preserves_config() {
+TEST_CASE("mode switching preserves config", "[tracker][regression]") {
     TrackerConfig config;
     config.mode = TrackingMode::FAST;
 
     auto feature_ext = std::make_unique<MultiFeatureExtractor>(config.mode, config.feature);
 
-    assert(feature_ext->get_mode() == TrackingMode::FAST);
-    assert(feature_ext->total_dimensions() == 31);
+    REQUIRE(feature_ext->get_mode() == TrackingMode::FAST);
+    REQUIRE(feature_ext->total_dimensions() == 31);
 
     // Switch to ACCURATE
     feature_ext->set_mode(TrackingMode::ACCURATE);
-    assert(feature_ext->get_mode() == TrackingMode::ACCURATE);
-    assert(feature_ext->total_dimensions() == 42);
+    REQUIRE(feature_ext->get_mode() == TrackingMode::ACCURATE);
+    REQUIRE(feature_ext->total_dimensions() == 42);
 
     // Switch back to FAST
     feature_ext->set_mode(TrackingMode::FAST);
-    assert(feature_ext->get_mode() == TrackingMode::FAST);
-    assert(feature_ext->total_dimensions() == 31);
-
-    std::cout << "  PASS: test_mode_switching_preserves_config\n";
+    REQUIRE(feature_ext->get_mode() == TrackingMode::FAST);
+    REQUIRE(feature_ext->total_dimensions() == 31);
 }
 
-void test_displacement_with_scale() {
+TEST_CASE("displacement with scale", "[tracker][regression]") {
     // Test that displacement predictor and scale estimator work together
     DisplacementPredictor pred;
     ScaleEstimator scale_est;
@@ -132,16 +112,14 @@ void test_displacement_with_scale() {
     auto predicted = pred.predict({120, 110});
 
     // Verify prediction applied
-    assert(predicted.x > 120.0f);  // Should be ahead in motion direction
-    assert(predicted.y > 110.0f);
+    REQUIRE(predicted.x > 120.0f);  // Should be ahead in motion direction
+    REQUIRE(predicted.y > 110.0f);
 
     // Scale should be 1.0 initially
-    assert(std::abs(scale_est.get_current_scale() - 1.0f) < 0.001f);
-
-    std::cout << "  PASS: test_displacement_with_scale\n";
+    REQUIRE(std::abs(scale_est.get_current_scale() - 1.0f) < 0.001f);
 }
 
-void test_multi_feature_with_real_patch() {
+TEST_CASE("multi feature with real patch", "[tracker][regression]") {
     // Create a synthetic "real-world" patch with color gradient
     cv::Mat patch(64, 64, CV_8UC3);
     for (int y = 0; y < 64; y++) {
@@ -158,21 +136,19 @@ void test_multi_feature_with_real_patch() {
     for (auto mode : {TrackingMode::FAST, TrackingMode::BALANCED, TrackingMode::ACCURATE}) {
         MultiFeatureExtractor ext(mode);
         cv::Mat features = ext.extract(patch);
-        assert(!features.empty());
+        REQUIRE(!features.empty());
 
         // Verify no NaN or Inf values
         cv::Mat flat = features.reshape(1, features.total() * features.channels());
         for (int i = 0; i < flat.rows; i++) {
             float val = flat.at<float>(i, 0);
-            assert(!std::isnan(val));
-            assert(!std::isinf(val));
+            REQUIRE(!std::isnan(val));
+            REQUIRE(!std::isinf(val));
         }
     }
-
-    std::cout << "  PASS: test_multi_feature_with_real_patch\n";
 }
 
-void test_track_copy_semantics() {
+TEST_CASE("track copy semantics", "[tracker][regression]") {
     // Test that Track copy constructor properly copies all fields including unique_ptr
     Track original;
     original.id = 42;
@@ -196,41 +172,18 @@ void test_track_copy_semantics() {
     // Copy
     Track copy(original);
 
-    assert(copy.id == original.id);
-    assert(copy.bbox == original.bbox);
-    assert(copy.confidence == original.confidence);
-    assert(copy.current_scale == original.current_scale);
-    assert(copy.displacement_predictor != nullptr);
-    assert(copy.displacement_predictor.get() != original.displacement_predictor.get()); // Different pointer
-    assert(copy.displacement_predictor->is_ready());  // History preserved
-
-    std::cout << "  PASS: test_track_copy_semantics\n";
+    REQUIRE(copy.id == original.id);
+    REQUIRE(copy.bbox == original.bbox);
+    REQUIRE(copy.confidence == original.confidence);
+    REQUIRE(copy.current_scale == original.current_scale);
+    REQUIRE(copy.displacement_predictor != nullptr);
+    REQUIRE(copy.displacement_predictor.get() != original.displacement_predictor.get()); // Different pointer
+    REQUIRE(copy.displacement_predictor->is_ready());  // History preserved
 }
 
-void test_all_modes_dimensions() {
+TEST_CASE("all modes dimensions", "[tracker][regression]") {
     // Verify dimension counts match spec
-    assert(MultiFeatureExtractor(TrackingMode::FAST).total_dimensions() == 31);
-    assert(MultiFeatureExtractor(TrackingMode::BALANCED).total_dimensions() == 32);
-    assert(MultiFeatureExtractor(TrackingMode::ACCURATE).total_dimensions() == 42);
-
-    std::cout << "  PASS: test_all_modes_dimensions\n";
-}
-
-int main() {
-    std::cout << "Running tracker integration tests...\n";
-
-    test_tracker_config_modes();
-    test_displacement_config();
-    test_scale_config();
-    test_feature_extractor_integration();
-    test_tracking_pipeline_components();
-    test_tracker_config_defaults();
-    test_mode_switching_preserves_config();
-    test_displacement_with_scale();
-    test_multi_feature_with_real_patch();
-    test_track_copy_semantics();
-    test_all_modes_dimensions();
-
-    std::cout << "All tracker integration tests passed!\n";
-    return 0;
+    REQUIRE(MultiFeatureExtractor(TrackingMode::FAST).total_dimensions() == 31);
+    REQUIRE(MultiFeatureExtractor(TrackingMode::BALANCED).total_dimensions() == 32);
+    REQUIRE(MultiFeatureExtractor(TrackingMode::ACCURATE).total_dimensions() == 42);
 }
