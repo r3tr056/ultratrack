@@ -2,7 +2,7 @@
 
 UltraTrack is a C++17 object tracking project with a legacy video CLI and a
 Phase 1 SDK. The SDK combines an OpenCV DNN detector, KCF correlation tracking,
-Kalman prediction, Hungarian assignment with IoU gating, and track lifecycle
+Kalman prediction, a Hungarian-style assignment heuristic with IoU gating, and track lifecycle
 management. It is a development foundation with several unfinished production
 features.
 
@@ -37,6 +37,29 @@ Requirements: CMake, a C++17 compiler, OpenCV 4.5 or newer, spdlog,
 nlohmann_json, and Catch2 3 for tests. `vcpkg.json` lists the dependencies.
 Installed dependencies are local and ignored by Git; they must match your
 compiler. The current checkout retains them under `vcpkg/installed/x64-windows`.
+
+The installed tool inventory on 1 October 2026 is:
+
+| Component | Existing installation |
+| --- | --- |
+| Git and Git Credential Manager | Git 2.55.0; GitHub browser login available |
+| CMake and CTest | 4.4.3 |
+| C++ compiler | Visual Studio Build Tools 2022, MSVC 19.44.35229 |
+| Windows SDK | 10.0.26100.0 |
+| C++ dependencies | OpenCV 4.12.0, spdlog 1.17.0, nlohmann-json 3.12.0, Catch2 3.15.1, x64-windows |
+| Other tools on PATH | Ninja, Python 3.12.10, Node.js 22.23.2, npm, Go, Docker, ODW |
+| Tools absent from PATH | GitHub CLI, dotnet, mypy, pytest, OCR review |
+
+Use CMake with the existing MSVC toolchain and one vcpkg dependency prefix.
+Ninja and the other language runtimes are already available, but are not needed
+for this verified build path. No additional compiler or package manager is
+needed. Inspect the installed tools and dependencies before changing setup.
+
+The active system Python has PyYAML and Ruff, but lacks OpenCV, NumPy, Pillow,
+requests, tqdm, mypy and pytest. Codex also has an existing bundled runtime with
+NumPy and Pillow for artifact work. Neither Python environment currently covers
+the entire helper requirements file; no Python packages were installed for this
+C++ consolidation.
 
 From PowerShell with Visual Studio Build Tools 2022 installed:
 
@@ -78,10 +101,24 @@ The SDK supports CMake installation/export as `ultratrack::ultratrack`.
 - The legacy header and SDK headers define different `Track`, `Detection` and
   `ErrorCode` types in the same namespace. Their API/type separation needs work
   before combining both interfaces in one client or shipping the SDK.
+- Assignment uses a greedy row/column reduction heuristic; it does not implement
+  a globally optimal Hungarian solver.
 - The Python GUI contains unfinished download/training functions. It is not
   the primary SDK interface.
 - Model files are not bundled. Real inference, hardware acceleration and
   performance targets require separate model/hardware validation.
+
+## Plan for further work
+
+1. Keep using `development`, the existing MSVC/CMake tools and the single
+   installed vcpkg prefix. Inventory versions before any tool or SDK setup.
+2. Resolve the legacy/SDK type and error-code collisions before exposing a
+   combined public API. Add a client compilation check for the chosen boundary.
+3. Supply a compatible detector model fixture and run the eight currently
+   skipped inference/session checks before making runtime or performance claims.
+4. Choose the next production feature explicitly: alternate detector backends,
+   real licensing, accuracy metrics, or the Python interface. Implement only the
+   chosen scope and reuse available dependencies.
 
 ## Verification and local cleanup
 
@@ -94,5 +131,7 @@ C++ checks.
 Stale CMake output from the previous machine was moved outside the repository
 into system TEMP. Installed vcpkg dependencies were preserved; Catch2 3.15.1
 was rebuilt with the current compiler to replace incompatible copied binaries.
-Build output and common tool caches are ignored. Recovery snapshots are kept
-outside the repository.
+The obsolete SDK checkout and the verified build output were also moved to the
+recovery folder in system TEMP, leaving one active checkout and no build cache
+in the repository. Build output and common tool caches are ignored. Recovery
+snapshots are kept outside the repository.

@@ -12,6 +12,10 @@
 ## Build and verification
 
 This is a C++17 CMake project. Read `README.md` for dependencies and setup.
+Before setup, inventory installed tools, SDKs and dependency versions. Reuse
+the existing MSVC/CMake/vcpkg route; do not install duplicate tools or overlapping
+dependency sets. Check both the active environment and available bundled
+runtimes before proposing an installation.
 On Windows with the repository's installed vcpkg dependencies, use:
 
 ```powershell
